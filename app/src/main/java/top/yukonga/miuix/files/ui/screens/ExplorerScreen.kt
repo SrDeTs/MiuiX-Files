@@ -5,6 +5,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -34,6 +35,8 @@ import top.yukonga.miuix.files.ui.components.*
 import top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.utils.SinkFeedback
+import top.yukonga.miuix.kmp.utils.pressable
 import java.io.File
 
 @Composable
@@ -97,15 +100,16 @@ fun ExplorerScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF1D1F24))
+            .background(Color(0xFF292C2E))
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // 1:1 Top Bar for Explorer
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .background(Color(0xFF31353D))
                     .statusBarsPadding()
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                    .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Menu (☰)
@@ -150,20 +154,20 @@ fun ExplorerScreen(
                 // Tab pill: 📁 Local ✕
                 Row(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Color(0xFF2C2F36))
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF464A51))
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Image(
                         painter = painterResource(R.drawable.format_folder),
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = if (isSelectionMode) "${selectedPaths.size} selecionados" else "Local",
-                        fontSize = 13.sp,
+                        fontSize = 12.5.sp,
                         fontWeight = FontWeight.Medium,
                         color = Color.White
                     )
@@ -175,7 +179,7 @@ fun ExplorerScreen(
                             .clickable { onNavigateBack() },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(text = "✕", fontSize = 11.sp, color = Color(0xFF9E9E9E))
+                        Text(text = "✕", fontSize = 11.sp, color = Color(0xFFB0B0B0))
                     }
                 }
 
@@ -324,24 +328,37 @@ fun ExplorerScreen(
                 )
             } else {
                 // ES Bottom Bar with Visualizar toggle
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFF191B20))
-                        .padding(vertical = 6.dp, horizontal = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceAround,
-                    verticalAlignment = Alignment.CenterVertically
+                        .background(Color(0xFF292C2E))
+                        .navigationBarsPadding()
                 ) {
-                    ExplorerBottomActionItem("Novo", R.drawable.toolbar_new) {
-                        newFolderName = ""
-                        showNewFolderDialog = true
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(Color(0xFF383C42))
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(54.dp)
+                            .padding(horizontal = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceAround,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        ExplorerBottomActionItem("Novo", R.drawable.toolbar_new, modifier = Modifier.weight(1f)) {
+                            newFolderName = ""
+                            showNewFolderDialog = true
+                        }
+                        ExplorerBottomActionItem("Procurar", R.drawable.toolbar_search, modifier = Modifier.weight(1f)) {}
+                        ExplorerBottomActionItem("Atualizar", R.drawable.toolbar_refresh, modifier = Modifier.weight(1f)) { refreshFiles() }
+                        ExplorerBottomActionItem("Visualizar", R.drawable.toolbar_view, modifier = Modifier.weight(1f)) {
+                            isGridView = !isGridView
+                        }
+                        ExplorerBottomActionItem("Mais", R.drawable.toolbar_more, modifier = Modifier.weight(1f)) {}
                     }
-                    ExplorerBottomActionItem("Procurar", R.drawable.toolbar_search) {}
-                    ExplorerBottomActionItem("Atualizar", R.drawable.toolbar_refresh) { refreshFiles() }
-                    ExplorerBottomActionItem("Visualizar", R.drawable.toolbar_view) {
-                        isGridView = !isGridView
-                    }
-                    ExplorerBottomActionItem("Mais", R.drawable.toolbar_more) {}
                 }
             }
         }
@@ -468,25 +485,36 @@ fun ExplorerScreen(
 private fun ExplorerBottomActionItem(
     title: String,
     iconRes: Int,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 4.dp, horizontal = 10.dp)
+        verticalArrangement = Arrangement.Center,
+        modifier = modifier
+            .fillMaxHeight()
+            .pressable(
+                interactionSource = interactionSource,
+                indication = SinkFeedback()
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .padding(vertical = 4.dp)
     ) {
         Image(
             painter = painterResource(iconRes),
             contentDescription = title,
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(23.dp),
             colorFilter = ColorFilter.tint(Color(0xFFE0E0E0))
         )
-        Spacer(modifier = Modifier.height(3.dp))
+        Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = title,
-            fontSize = 11.sp,
+            fontSize = 10.5.sp,
             color = Color(0xFFB0B3B8),
             fontWeight = FontWeight.Normal
         )

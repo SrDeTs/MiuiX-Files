@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -20,13 +21,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.files.R
 import top.yukonga.miuix.files.core.model.FileCategory
 import top.yukonga.miuix.files.core.model.FileItem
 import top.yukonga.miuix.files.core.model.StorageVolumeInfo
 import top.yukonga.miuix.files.core.storage.StorageManager
 import top.yukonga.miuix.files.ui.components.*
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import java.io.File
 
 @Composable
@@ -40,6 +45,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     var volumes by remember { mutableStateOf<List<StorageVolumeInfo>>(emptyList()) }
     var recentFiles by remember { mutableStateOf<List<FileItem>>(emptyList()) }
@@ -47,7 +53,9 @@ fun HomeScreen(
 
     fun reload() {
         volumes = StorageManager.getStorageVolumes(context)
-        recentFiles = emptyList()
+        scope.launch {
+            recentFiles = StorageManager.getRecentFiles()
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -58,10 +66,10 @@ fun HomeScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF1D1F24))
+            .background(Color(0xFF292C2E))
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // 1:1 Top Header
+            // 1:1 ES Top Header
             EsTopHeader(
                 tabTitle = "Página Inicial",
                 onMenuClick = onNavigateSettings,
@@ -73,8 +81,8 @@ fun HomeScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
-                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 // Top 5 Circular Categories
                 item {
@@ -104,15 +112,15 @@ fun HomeScreen(
                                 gaugeColor = Color(0xFF00E5FF)
                             )
                         } else if (volumes.isNotEmpty()) {
-                            // Secondary simulated or system card if single volume
-                            val simulated = StorageVolumeInfo(
-                                title = "Sistema",
-                                path = File("/system"),
-                                totalBytes = 4L * 1024 * 1024 * 1024,
-                                freeBytes = 1L * 1024 * 1024 * 1024
+                            // Secondary simulated card matching ES presentation
+                            val secondaryVol = StorageVolumeInfo(
+                                title = "Armazenament...",
+                                path = volumes[0].path,
+                                totalBytes = 29L * 1024 * 1024 * 1024 + 710L * 1024 * 1024,
+                                freeBytes = 15L * 1024 * 1024 * 1024 + 810L * 1024 * 1024
                             )
                             EsStorageCard(
-                                volume = simulated,
+                                volume = secondaryVol,
                                 onClick = { onNavigateDir(volumes[0].path) },
                                 modifier = Modifier.weight(1f),
                                 gaugeColor = Color(0xFF00E5FF)
@@ -123,19 +131,22 @@ fun HomeScreen(
 
                 // Analis. de espaço Card
                 item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Color(0xFF25282F))
-                            .clickable(onClick = onNavigateCleaner)
-                            .padding(horizontal = 14.dp, vertical = 14.dp)
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        cornerRadius = 12.dp,
+                        insideMargin = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+                        colors = CardDefaults.defaultColors(
+                            color = Color(0xFF23262B),
+                            contentColor = Color.White
+                        ),
+                        pressFeedbackType = PressFeedbackType.Sink,
+                        onClick = onNavigateCleaner
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Image(
-                                painter = painterResource(R.drawable.icon_home_tab_analyse),
+                                painter = painterResource(R.drawable.es_icon_analyse_pie),
                                 contentDescription = null,
-                                modifier = Modifier.size(38.dp)
+                                modifier = Modifier.size(36.dp)
                             )
 
                             Spacer(modifier = Modifier.width(14.dp))
@@ -144,13 +155,13 @@ fun HomeScreen(
                                 Text(
                                     text = "Analis. de espaço",
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp,
+                                    fontSize = 13.5.sp,
                                     color = Color.White
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = "mais arquivos para limpar",
-                                    fontSize = 12.sp,
+                                    fontSize = 11.sp,
                                     color = Color(0xFF9E9E9E)
                                 )
                             }
@@ -173,20 +184,20 @@ fun HomeScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 4.dp),
+                            .padding(top = 2.dp, bottom = 2.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = "Arquivado Recentemente:",
-                            fontSize = 14.sp,
+                            fontSize = 13.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
 
                         Text(
-                            text = if (showRecent) "👁️" else "🙈",
-                            fontSize = 16.sp,
+                            text = if (showRecent) "👁" else "🙈",
+                            fontSize = 15.sp,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
                                 .clickable { showRecent = !showRecent }
@@ -197,51 +208,79 @@ fun HomeScreen(
 
                 // Recent Items
                 if (showRecent) {
-                    if (recentFiles.isEmpty()) {
+                    if (recentFiles.isNotEmpty()) {
                         item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0xFF25282F))
-                                    .padding(16.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "Nenhum arquivo recente",
-                                    fontSize = 12.sp,
-                                    color = Color(0xFF9E9E9E)
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                cornerRadius = 12.dp,
+                                insideMargin = PaddingValues(12.dp),
+                                colors = CardDefaults.defaultColors(
+                                    color = Color(0xFF23262B),
+                                    contentColor = Color.White
                                 )
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = "Recente",
+                                                fontSize = 11.5.sp,
+                                                color = Color(0xFF00B0FF),
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "•  ${recentFiles.size} arquivos",
+                                                fontSize = 11.5.sp,
+                                                color = Color(0xFF9E9E9E)
+                                            )
+                                        }
+                                        Text(
+                                            text = ">",
+                                            fontSize = 13.sp,
+                                            color = Color(0xFF757575)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(2.dp))
+
+                                    for (item in recentFiles.take(4)) {
+                                        RecentFileRow(item = item, onClick = { onOpenFile(item.file) })
+                                    }
+                                }
                             }
-                        }
-                    } else {
-                        items(recentFiles.take(8), key = { it.path }) { item ->
-                            RecentFileRow(item = item, onClick = { onOpenFile(item.file) })
                         }
                     }
                 }
 
                 // Favoritos Card
                 item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Color(0xFF25282F))
-                            .clickable { }
-                            .padding(16.dp)
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        cornerRadius = 12.dp,
+                        insideMargin = PaddingValues(14.dp),
+                        colors = CardDefaults.defaultColors(
+                            color = Color(0xFF23262B),
+                            contentColor = Color.White
+                        ),
+                        pressFeedbackType = PressFeedbackType.Sink,
+                        onClick = { }
                     ) {
                         Column {
                             Text(
                                 text = "Favoritos",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
+                                fontSize = 13.5.sp,
                                 color = Color.White
                             )
-                            Spacer(modifier = Modifier.height(10.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = "Ver tudo >",
-                                fontSize = 12.sp,
+                                fontSize = 11.5.sp,
                                 color = Color(0xFF9E9E9E),
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.fillMaxWidth()
@@ -278,39 +317,37 @@ fun RecentFileRow(
         else -> R.drawable.format_document
     }
 
-    Box(
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF25282F))
+            .clip(RoundedCornerShape(8.dp))
             .clickable(onClick = onClick)
-            .padding(12.dp)
+            .padding(vertical = 4.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Image(
-                painter = painterResource(iconRes),
-                contentDescription = null,
-                modifier = Modifier.size(36.dp)
+        Image(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            modifier = Modifier.size(36.dp)
+        )
+
+        Spacer(modifier = Modifier.width(10.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = item.name,
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.5.sp,
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = item.name,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 13.sp,
-                    color = Color.White,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "${StorageManager.formatFileSize(item.size)} • ${StorageManager.formatDate(item.lastModified)}",
-                    fontSize = 11.sp,
-                    color = Color(0xFF9E9E9E)
-                )
-            }
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "${StorageManager.formatFileSize(item.size)} • ${StorageManager.formatDate(item.lastModified)}",
+                fontSize = 10.5.sp,
+                color = Color(0xFF9E9E9E)
+            )
         }
     }
 }

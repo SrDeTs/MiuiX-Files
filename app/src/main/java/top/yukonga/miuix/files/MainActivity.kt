@@ -15,6 +15,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.core.content.FileProvider
 import top.yukonga.miuix.files.core.model.FileCategory
 import top.yukonga.miuix.files.ui.screens.*
@@ -45,14 +46,12 @@ class MainActivity : ComponentActivity() {
                 val currentScreen = backStack.lastOrNull() ?: Screen.Home
 
                 Scaffold(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MiuixTheme.colorScheme.background)
-                ) { padding ->
+                    modifier = Modifier.fillMaxSize(),
+                    containerColor = Color(0xFF292C2E),
+                    contentWindowInsets = WindowInsets(0, 0, 0, 0)
+                ) { _ ->
                     Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(padding)
+                        modifier = Modifier.fillMaxSize()
                     ) {
                         when (val screen = currentScreen) {
                             is Screen.Home -> {

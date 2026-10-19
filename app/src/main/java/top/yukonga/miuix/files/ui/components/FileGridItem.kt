@@ -4,14 +4,16 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -22,6 +24,8 @@ import top.yukonga.miuix.files.R
 import top.yukonga.miuix.files.core.model.FileItem
 import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.utils.SinkFeedback
+import top.yukonga.miuix.kmp.utils.pressable
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -33,6 +37,19 @@ fun FileGridItem(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+
+    val folderBadgeIcon: Int? = when (item.name.lowercase()) {
+        "dcim", "camera" -> R.drawable.toolbar_image
+        "download", "downloads" -> R.drawable.toolbar_download
+        "android" -> R.drawable.toolbar_setting
+        "movies", "video", "videos" -> R.drawable.toolbar_video
+        "music", "audio", "podcasts", "recordings", "ringtones", "notifications", "alarms" -> R.drawable.toolbar_music
+        "pictures", "screenshots", "images" -> R.drawable.toolbar_image
+        "backups" -> R.drawable.toolbar_backup
+        else -> null
+    }
+
     val iconRes = when {
         item.isDirectory -> R.drawable.format_folder
         item.extension == "apk" -> R.drawable.format_apk
@@ -46,7 +63,7 @@ fun FileGridItem(
     }
 
     val backgroundColor = if (isSelected) {
-        Color(0xFF007AFF).copy(alpha = 0.25f)
+        Color(0xFF007AFF).copy(alpha = 0.28f)
     } else {
         Color.Transparent
     }
@@ -55,7 +72,13 @@ fun FileGridItem(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
             .background(backgroundColor)
+            .pressable(
+                interactionSource = interactionSource,
+                indication = SinkFeedback()
+            )
             .combinedClickable(
+                interactionSource = interactionSource,
+                indication = null,
                 onClick = onClick,
                 onLongClick = onLongClick
             )
@@ -66,17 +89,33 @@ fun FileGridItem(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Image(
-                painter = painterResource(iconRes),
-                contentDescription = item.name,
-                modifier = Modifier.size(54.dp)
-            )
+            Box(
+                modifier = Modifier.size(56.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(iconRes),
+                    contentDescription = item.name,
+                    modifier = Modifier.size(56.dp)
+                )
 
-            Spacer(modifier = Modifier.height(5.dp))
+                if (item.isDirectory && folderBadgeIcon != null) {
+                    Image(
+                        painter = painterResource(folderBadgeIcon),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .offset(y = 2.dp),
+                        colorFilter = ColorFilter.tint(Color.White)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
 
             Text(
                 text = item.name,
-                fontSize = 12.sp,
+                fontSize = 11.5.sp,
                 color = Color.White,
                 fontWeight = FontWeight.Normal,
                 maxLines = 2,
