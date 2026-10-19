@@ -1,99 +1,67 @@
 package top.yukonga.miuix.files.ui.components
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import top.yukonga.miuix.files.core.model.StorageVolumeInfo
 import top.yukonga.miuix.files.core.storage.StorageManager
-import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-fun StorageCard(
+fun EsStorageCard(
     volume: StorageVolumeInfo,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    gaugeColor: Color = Color(0xFF00B0FF)
 ) {
-    val animatedProgress by animateFloatAsState(
-        targetValue = volume.progress,
-        label = "storageProgress"
-    )
+    val percentage = (volume.progress * 100).toInt()
 
-    Card(
+    Box(
         modifier = modifier
-            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFF25282F))
             .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 14.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            CircularStorageGauge(
+                progress = volume.progress,
+                percentage = percentage,
+                progressColor = gaugeColor,
+                size = 46.dp
+            )
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = volume.title,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp,
-                    color = MiuixTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "${(volume.progress * 100).toInt()}%",
                     fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    color = MiuixTheme.colorScheme.primary
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // HyperOS Smooth Progress Bar
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(MiuixTheme.colorScheme.surfaceVariant)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(animatedProgress)
-                        .fillMaxHeight()
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(MiuixTheme.colorScheme.primary)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "Usado: ${StorageManager.formatFileSize(volume.usedBytes)}",
                     fontSize = 13.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
+                Spacer(modifier = Modifier.height(3.dp))
                 Text(
-                    text = "Total: ${StorageManager.formatFileSize(volume.totalBytes)}",
-                    fontSize = 13.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    text = "${StorageManager.formatFileSize(volume.usedBytes)} / ${StorageManager.formatFileSize(volume.totalBytes)}",
+                    fontSize = 11.sp,
+                    color = Color(0xFF9E9E9E),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
