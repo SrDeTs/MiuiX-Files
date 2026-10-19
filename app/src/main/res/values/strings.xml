@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">MiuiX Files</string>
+    <string name="internal_storage">Armazenamento Interno</string>
+    <string name="sd_card">Cartão SD</string>
+    <string name="category_images">Imagens</string>
+    <string name="category_videos">Vídeos</string>
+    <string name="category_audio">Áudio</string>
+    <string name="category_documents">Documentos</string>
+    <string name="category_apps">Aplicativos</string>
+    <string name="category_archives">Compactados</string>
+    <string name="category_downloads">Downloads</string>
+    <string name="category_recycle_bin">Lixeira</string>
+    <string name="tool_cleaner">Limpeza de Lixo</string>
+    <string name="tool_ftp">Servidor FTP</string>
+    <string name="tool_network">Rede LAN / SMB</string>
+</resources>
