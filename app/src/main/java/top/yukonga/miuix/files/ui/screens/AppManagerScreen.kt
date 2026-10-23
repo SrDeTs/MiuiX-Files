@@ -35,15 +35,16 @@ fun AppManagerScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var allApps by remember { mutableStateOf<List<InstalledAppItem>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) }
+    val cached = remember { AppManager.getCachedApps() }
+    var allApps by remember { mutableStateOf(cached ?: emptyList()) }
+    var isLoading by remember { mutableStateOf(cached == null) }
     var filterUserOnly by remember { mutableStateOf(true) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedApp by remember { mutableStateOf<InstalledAppItem?>(null) }
     var backupStatusMessage by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
-        isLoading = true
+        if (cached == null) isLoading = true
         allApps = AppManager.getInstalledApps(context)
         isLoading = false
     }
@@ -111,7 +112,7 @@ fun AppManagerScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             // App Icon
-                            AppIconImage(drawable = app.icon)
+                            AppIconImage(iconBitmap = app.iconBitmap, drawable = app.icon)
 
                             Spacer(modifier = Modifier.width(12.dp))
 
@@ -236,7 +237,17 @@ fun AppManagerScreen(
 }
 
 @Composable
-fun AppIconImage(drawable: Drawable?) {
+fun AppIconImage(iconBitmap: androidx.compose.ui.graphics.ImageBitmap?, drawable: Drawable?) {
+    if (iconBitmap != null) {
+        Image(
+            bitmap = iconBitmap,
+            contentDescription = null,
+            modifier = Modifier
+                .size(42.dp)
+                .clip(RoundedCornerShape(10.dp))
+        )
+        return
+    }
     if (drawable == null) {
         Box(
             modifier = Modifier
@@ -257,11 +268,11 @@ fun AppIconImage(drawable: Drawable?) {
         val canvas = Canvas(bmp)
         drawable.setBounds(0, 0, canvas.width, canvas.height)
         drawable.draw(canvas)
-        bmp
+        bmp.asImageBitmap()
     }
 
     Image(
-        bitmap = bitmap.asImageBitmap(),
+        bitmap = bitmap,
         contentDescription = null,
         modifier = Modifier
             .size(42.dp)

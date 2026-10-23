@@ -9,6 +9,7 @@ import android.util.Size
 import androidx.compose.foundation.Image
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -16,7 +17,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
-private val thumbCache = LruCache<String, Bitmap>(120)
+private val thumbDispatcher = Dispatchers.IO.limitedParallelism(3)
+private val thumbCache = LruCache<String, ImageBitmap>(200)
 private val imageExt = setOf("jpg", "jpeg", "png", "webp", "gif", "bmp", "heic")
 private val videoExt = setOf("mp4", "mkv", "avi", "mov", "3gp", "webm")
 
@@ -29,24 +31,27 @@ fun FileThumbnail(file: File, fallbackRes: Int, modifier: Modifier = Modifier) {
     var bmp by remember(key) { mutableStateOf(thumbCache.get(key)) }
     LaunchedEffect(key) {
         if (bmp != null || !isMediaFile(file)) return@LaunchedEffect
-        bmp = withContext(Dispatchers.IO) {
-            runCatching {
+        bmp = withContext(thumbDispatcher) {
+            thumbCache.get(key) ?: runCatching {
                 val ext = file.extension.lowercase()
-                val b = if (ext in videoExt) {
-                    if (android.os.Build.VERSION.SDK_INT >= 29) ThumbnailUtils.createVideoThumbnail(file, Size(256, 256), null)
+                val raw: Bitmap? = if (ext in videoExt) {
+                    if (android.os.Build.VERSION.SDK_INT >= 29) ThumbnailUtils.createVideoThumbnail(file, Size(144, 144), null)
                     else @Suppress("DEPRECATION") ThumbnailUtils.createVideoThumbnail(file.path, MediaStore.Images.Thumbnails.MINI_KIND)
                 } else {
                     val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                     BitmapFactory.decodeFile(file.path, o)
                     var s = 1
-                    while (o.outWidth / s > 320 || o.outHeight / s > 320) s *= 2
-                    BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = s })
+                    while (o.outWidth / s > 180 || o.outHeight / s > 180) s *= 2
+                    BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply {
+                        inSampleSize = s
+                        inPreferredConfig = Bitmap.Config.RGB_565
+                    })
                 }
-                b?.also { thumbCache.put(key, it) }
+                raw?.asImageBitmap()?.also { thumbCache.put(key, it) }
             }.getOrNull()
         }
     }
     val b = bmp
-    if (b != null) Image(b.asImageBitmap(), null, modifier, contentScale = ContentScale.Crop)
+    if (b != null) Image(b, null, modifier, contentScale = ContentScale.Crop)
     else Image(painterResource(fallbackRes), null, modifier)
 }

@@ -45,9 +45,11 @@ fun CategoryScreen(
     onOpenFile: (File) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
-    var files by remember { mutableStateOf<List<FileItem>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) }
+    val cached = remember(category) { StorageManager.getCachedCategory(category) }
+    var files by remember(category) { mutableStateOf(cached ?: emptyList()) }
+    var isLoading by remember(category) { mutableStateOf(cached == null) }
     var isGridView by remember { mutableStateOf(true) }
     var showSearchBar by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
@@ -65,8 +67,8 @@ fun CategoryScreen(
     }
 
     LaunchedEffect(category) {
-        isLoading = true
-        files = StorageManager.getCategoryFiles(category)
+        if (cached == null) isLoading = true
+        files = StorageManager.getCategoryFiles(category, context = context)
         isLoading = false
     }
 
@@ -326,7 +328,7 @@ fun CategoryScreen(
                     CategoryBottomItem("Atualizar", R.drawable.toolbar_refresh, modifier = Modifier.weight(1f)) {
                         scope.launch {
                             isLoading = true
-                            files = StorageManager.getCategoryFiles(category)
+                            files = StorageManager.getCategoryFiles(category, context = context, forceRefresh = true)
                             isLoading = false
                         }
                     }

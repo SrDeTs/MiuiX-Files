@@ -51,7 +51,7 @@ fun ExplorerScreen(
     val prefs = remember(context) { context.getSharedPreferences(MiuiXFilesPreferences.PREFS_NAME, Context.MODE_PRIVATE) }
 
     var currentDir by remember { mutableStateOf(initialDir) }
-    var files by remember { mutableStateOf<List<FileItem>>(emptyList()) }
+    var files by remember { mutableStateOf(StorageManager.getCachedDir(initialDir) ?: emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
     var showHidden by remember { mutableStateOf(prefs.getBoolean(MiuiXFilesPreferences.KEY_SHOW_HIDDEN, false)) }
     var currentSort by remember { mutableStateOf(SortOption.NAME_ASC) }
@@ -70,6 +70,9 @@ fun ExplorerScreen(
     var clipboardState by remember { mutableStateOf(FileOperations.currentClipboard) }
 
     fun refreshFiles() {
+        StorageManager.getCachedDir(currentDir)?.let {
+            if (!showHidden && currentSort == SortOption.NAME_ASC) files = it
+        }
         scope.launch {
             files = StorageManager.listFiles(currentDir, showHidden = showHidden, sortOption = currentSort)
             selectedPaths = emptySet()

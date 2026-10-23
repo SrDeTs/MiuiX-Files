@@ -1,7 +1,9 @@
 package top.yukonga.miuix.files.core.storage
 
 import android.content.Context
+import android.net.Uri
 import android.os.Environment
+import android.provider.MediaStore
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -10,10 +12,28 @@ import top.yukonga.miuix.files.core.model.FileItem
 import top.yukonga.miuix.files.core.model.SortOption
 import top.yukonga.miuix.files.core.model.StorageVolumeInfo
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 object StorageManager {
 
+    private var cachedVolumes: List<StorageVolumeInfo>? = null
+    private var cachedRecentFiles: List<FileItem>? = null
+    private val cachedCategories = ConcurrentHashMap<FileCategory, List<FileItem>>()
+    private val cachedDirs = ConcurrentHashMap<String, List<FileItem>>()
+
+    fun getCachedCategory(category: FileCategory): List<FileItem>? = cachedCategories[category]
+    fun getCachedDir(dir: File): List<FileItem>? = cachedDirs[dir.absolutePath]
+    fun getCachedRecents(): List<FileItem>? = cachedRecentFiles
+    fun getCachedVolumes(): List<StorageVolumeInfo>? = cachedVolumes
+
+    fun invalidateCaches() {
+        cachedRecentFiles = null
+        cachedCategories.clear()
+        cachedDirs.clear()
+    }
+
     fun getStorageVolumes(context: Context): List<StorageVolumeInfo> {
+        cachedVolumes?.let { return it }
         val volumes = mutableListOf<StorageVolumeInfo>()
 
         // Internal Primary Storage
@@ -34,7 +54,6 @@ object StorageManager {
         val externalFilesDirs = ContextCompat.getExternalFilesDirs(context, null)
         for (f in externalFilesDirs) {
             if (f != null && Environment.isExternalStorageRemovable(f)) {
-                // Discover mount root
                 var root = f
                 while (root.parentFile != null && !root.parentFile!!.absolutePath.equals("/storage", ignoreCase = true)) {
                     root = root.parentFile ?: break
@@ -53,6 +72,7 @@ object StorageManager {
             }
         }
 
+        cachedVolumes = volumes
         return volumes
     }
 
@@ -65,30 +85,34 @@ object StorageManager {
 
         val rawFiles = directory.listFiles() ?: return@withContext emptyList()
 
-        val items = rawFiles
-            .filter { showHidden || !it.name.startsWith(".") }
-            .map { file ->
-                val count = if (file.isDirectory) (file.listFiles()?.size ?: 0) else 0
+        val items = ArrayList<FileItem>(rawFiles.size)
+        for (file in rawFiles) {
+            val name = file.name
+            val hidden = name.startsWith(".")
+            if (!showHidden && hidden) continue
+            val isDir = file.isDirectory
+            items.add(
                 FileItem(
                     file = file,
-                    name = file.name,
+                    name = name,
                     path = file.absolutePath,
-                    isDirectory = file.isDirectory,
-                    size = if (file.isDirectory) 0L else file.length(),
+                    isDirectory = isDir,
+                    size = if (isDir) 0L else file.length(),
                     lastModified = file.lastModified(),
-                    itemCount = count,
-                    isHidden = file.name.startsWith(".")
+                    itemCount = 0, // Evita N chamadas extras de listFiles() que travam pastas grandes
+                    isHidden = hidden
                 )
-            }
+            )
+        }
 
-        // Directories first, then files sorted according to SortOption
         val dirs = items.filter { it.isDirectory }
         val files = items.filter { !it.isDirectory }
 
-        val sortedDirs = sortList(dirs, sortOption)
-        val sortedFiles = sortList(files, sortOption)
-
-        sortedDirs + sortedFiles
+        val result = sortList(dirs, sortOption) + sortList(files, sortOption)
+        if (!showHidden && sortOption == SortOption.NAME_ASC) {
+            cachedDirs[directory.absolutePath] = result
+        }
+        result
     }
 
     private fun sortList(list: List<FileItem>, sortOption: SortOption): List<FileItem> {
@@ -103,39 +127,109 @@ object StorageManager {
         }
     }
 
+    private fun queryMediaStore(
+        context: Context,
+        uri: Uri,
+        selection: String? = null,
+        selectionArgs: Array<String>? = null,
+        limit: Int = 500
+    ): List<FileItem> {
+        val out = ArrayList<FileItem>()
+        val projection = arrayOf(
+            MediaStore.MediaColumns.DATA,
+            MediaStore.MediaColumns.SIZE,
+            MediaStore.MediaColumns.DATE_MODIFIED
+        )
+        runCatching {
+            context.contentResolver.query(
+                uri,
+                projection,
+                selection,
+                selectionArgs,
+                "${MediaStore.MediaColumns.DATE_MODIFIED} DESC"
+            )?.use { cursor ->
+                val dataCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DATA)
+                val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.SIZE)
+                val dateCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DATE_MODIFIED)
+                while (cursor.moveToNext() && out.size < limit) {
+                    val path = cursor.getString(dataCol) ?: continue
+                    val f = File(path)
+                    if (!f.exists() || f.name.startsWith(".")) continue
+                    val size = cursor.getLong(sizeCol)
+                    val modified = cursor.getLong(dateCol) * 1000L
+                    out.add(
+                        FileItem(
+                            file = f,
+                            name = f.name,
+                            path = path,
+                            isDirectory = false,
+                            size = if (size > 0) size else f.length(),
+                            lastModified = if (modified > 0) modified else f.lastModified()
+                        )
+                    )
+                }
+            }
+        }
+        return out
+    }
+
     suspend fun getCategoryFiles(
         category: FileCategory,
         rootDir: File = Environment.getExternalStorageDirectory(),
-        maxItems: Int = 500
+        maxItems: Int = 500,
+        context: Context? = null,
+        forceRefresh: Boolean = false
     ): List<FileItem> = withContext(Dispatchers.IO) {
+        if (!forceRefresh) {
+            cachedCategories[category]?.let { return@withContext it }
+        }
+
         if (category == FileCategory.DOWNLOADS) {
             val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            return@withContext listFiles(downloadDir)
+            return@withContext listFiles(downloadDir).also { cachedCategories[category] = it }
         }
         if (category == FileCategory.RECYCLE_BIN) {
             val trashDir = File(Environment.getExternalStorageDirectory(), ".estrongs/recycle")
             if (!trashDir.exists()) trashDir.mkdirs()
-            return@withContext listFiles(trashDir, showHidden = true)
+            return@withContext listFiles(trashDir, showHidden = true).also { cachedCategories[category] = it }
         }
 
-        val result = mutableListOf<FileItem>()
-        fun scan(dir: File) {
-            if (result.size >= maxItems) return
+        // Busca ultra-rápida via MediaStore quando Context está disponível (<15ms em vez de varrer árvore de pastas)
+        if (context != null) {
+            val mediaResult = when (category) {
+                FileCategory.IMAGES -> queryMediaStore(context, MediaStore.Images.Media.EXTERNAL_CONTENT_URI, limit = maxItems)
+                FileCategory.VIDEOS -> queryMediaStore(context, MediaStore.Video.Media.EXTERNAL_CONTENT_URI, limit = maxItems)
+                FileCategory.AUDIO -> queryMediaStore(context, MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, limit = maxItems)
+                else -> {
+                    val exts = category.extensions.toList()
+                    val placeholders = exts.joinToString(" OR ") { "${MediaStore.MediaColumns.DATA} LIKE ?" }
+                    val args = exts.map { "%.$it" }.toTypedArray()
+                    queryMediaStore(context, MediaStore.Files.getContentUri("external"), placeholders, args, maxItems)
+                }
+            }
+            if (mediaResult.isNotEmpty()) {
+                cachedCategories[category] = mediaResult
+                return@withContext mediaResult
+            }
+        }
+
+        // Fallback leve em diretórios rasos caso MediaStore esteja vazio
+        val result = ArrayList<FileItem>()
+        fun scan(dir: File, depth: Int) {
+            if (depth > 3 || result.size >= maxItems) return
             val children = dir.listFiles() ?: return
             for (child in children) {
-                if (child.name.startsWith(".") && child.name != ".trash") continue
+                val name = child.name
+                if (name.startsWith(".")) continue
                 if (child.isDirectory) {
-                    // Skip Android/data or hidden deep dirs for fast category preview
-                    if (!child.absolutePath.contains("/Android/data") && !child.absolutePath.contains("/Android/obb")) {
-                        scan(child)
-                    }
+                    if (name != "Android") scan(child, depth + 1)
                 } else {
                     val ext = child.extension.lowercase()
                     if (category.extensions.contains(ext)) {
                         result.add(
                             FileItem(
                                 file = child,
-                                name = child.name,
+                                name = name,
                                 path = child.absolutePath,
                                 isDirectory = false,
                                 size = child.length(),
@@ -148,25 +242,48 @@ object StorageManager {
             }
         }
 
-        scan(rootDir)
-        result.sortedByDescending { it.lastModified }
+        scan(rootDir, 0)
+        result.sortedByDescending { it.lastModified }.also { cachedCategories[category] = it }
     }
 
     suspend fun getRecentFiles(
         rootDir: File = Environment.getExternalStorageDirectory(),
-        limit: Int = 20
+        limit: Int = 24,
+        context: Context? = null,
+        forceRefresh: Boolean = false
     ): List<FileItem> = withContext(Dispatchers.IO) {
-        val candidates = mutableListOf<FileItem>()
-        fun scan(dir: File, depth: Int) {
-            if (depth > 4) return
-            val children = dir.listFiles() ?: return
+        if (!forceRefresh && limit <= 30) {
+            cachedRecentFiles?.let { return@withContext it.take(limit) }
+        }
+
+        if (context != null) {
+            val fast = (
+                queryMediaStore(context, MediaStore.Images.Media.EXTERNAL_CONTENT_URI, limit = limit) +
+                queryMediaStore(context, MediaStore.Video.Media.EXTERNAL_CONTENT_URI, limit = limit)
+            ).sortedByDescending { it.lastModified }.take(limit)
+            if (fast.isNotEmpty()) {
+                if (limit <= 30) cachedRecentFiles = fast
+                return@withContext fast
+            }
+        }
+
+        // Fallback rápido apenas nas pastas principais de mídia/downloads (sem varrer milhares de subpastas)
+        val targetDirs = listOf(
+            File(rootDir, "DCIM/Camera"),
+            File(rootDir, "DCIM/Screenshots"),
+            File(rootDir, "Pictures"),
+            File(rootDir, "Pictures/Screenshots"),
+            File(rootDir, "Download"),
+            File(rootDir, "Movies"),
+            File(rootDir, "WhatsApp/Media/WhatsApp Images"),
+            File(rootDir, "Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Images"),
+            File(rootDir, "Android/media/com.whatsapp/WhatsApp/Media/.Statuses")
+        )
+        val candidates = ArrayList<FileItem>()
+        for (dir in targetDirs) {
+            val children = dir.listFiles() ?: continue
             for (child in children) {
-                if (child.name.startsWith(".")) continue
-                if (child.isDirectory) {
-                    if (!child.absolutePath.contains("/Android/")) {
-                        scan(child, depth + 1)
-                    }
-                } else {
+                if (!child.isDirectory && !child.name.startsWith(".")) {
                     candidates.add(
                         FileItem(
                             file = child,
@@ -180,8 +297,9 @@ object StorageManager {
                 }
             }
         }
-        scan(rootDir, 0)
-        candidates.sortedByDescending { it.lastModified }.take(limit)
+        val sorted = candidates.sortedByDescending { it.lastModified }.take(limit)
+        if (limit <= 30) cachedRecentFiles = sorted
+        sorted
     }
 
     fun formatFileSize(bytes: Long): String {

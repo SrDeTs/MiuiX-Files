@@ -21,7 +21,13 @@ data class CleanScanResult(
 
 object CleanerEngine {
 
-    suspend fun scanJunk(context: Context): CleanScanResult = withContext(Dispatchers.IO) {
+    private var cachedScan: CleanScanResult? = null
+    fun getCachedScan(): CleanScanResult? = cachedScan
+
+    suspend fun scanJunk(context: Context, forceRefresh: Boolean = false): CleanScanResult = withContext(Dispatchers.IO) {
+        if (!forceRefresh) {
+            cachedScan?.let { return@withContext it }
+        }
         val root = Environment.getExternalStorageDirectory()
         val tempFiles = mutableListOf<File>()
         val logFiles = mutableListOf<File>()
@@ -31,7 +37,7 @@ object CleanerEngine {
         // App Internal & External Cache
         fun collectCache(dir: File?) {
             if (dir == null || !dir.exists()) return
-            dir.walkTopDown().forEach {
+            dir.walkTopDown().maxDepth(3).forEach {
                 if (it.isFile) cacheFiles.add(it)
             }
         }
@@ -39,24 +45,28 @@ object CleanerEngine {
         collectCache(context.cacheDir)
         collectCache(context.externalCacheDir)
 
-        // Storage Junk Scan (up to 4 levels)
+        // Storage Junk Scan (up to 2 levels for instant response)
         fun scanDir(dir: File, depth: Int) {
-            if (depth > 4) return
+            if (depth > 2) return
             val list = dir.listFiles() ?: return
             for (f in list) {
+                val name = f.name
                 if (f.isDirectory) {
-                    if (f.name.equals(".thumbnails", ignoreCase = true) || f.name.equals(".cache", ignoreCase = true)) {
-                        f.walkTopDown().forEach { if (it.isFile) cacheFiles.add(it) }
-                    } else if (f.list()?.isEmpty() == true && !f.name.startsWith(".")) {
-                        emptyDirs.add(f)
-                    } else if (!f.absolutePath.contains("/Android/data")) {
-                        scanDir(f, depth + 1)
+                    if (name.equals(".thumbnails", ignoreCase = true) || name.equals(".cache", ignoreCase = true)) {
+                        f.listFiles()?.forEach { if (it.isFile) cacheFiles.add(it) }
+                    } else if (!name.startsWith(".") && name != "Android") {
+                        val sub = f.list()
+                        if (sub != null && sub.isEmpty()) {
+                            emptyDirs.add(f)
+                        } else if (depth < 2) {
+                            scanDir(f, depth + 1)
+                        }
                     }
                 } else {
-                    val name = f.name.lowercase()
-                    if (name.endsWith(".tmp") || name.endsWith(".temp") || name.endsWith("~")) {
+                    val lower = name.lowercase()
+                    if (lower.endsWith(".tmp") || lower.endsWith(".temp") || lower.endsWith("~")) {
                         tempFiles.add(f)
-                    } else if (name.endsWith(".log")) {
+                    } else if (lower.endsWith(".log")) {
                         logFiles.add(f)
                     }
                 }
@@ -79,7 +89,7 @@ object CleanerEngine {
             categories.add(JunkCategory("Pastas Vazias", "Diretórios órfãos sem arquivos", emptyDirs))
         }
 
-        CleanScanResult(categories)
+        CleanScanResult(categories).also { cachedScan = it }
     }
 
     suspend fun cleanJunk(files: List<File>): Long = withContext(Dispatchers.IO) {
@@ -96,6 +106,7 @@ object CleanerEngine {
                 }
             } catch (_: Exception) {}
         }
+        cachedScan = null
         cleanedBytes
     }
 }

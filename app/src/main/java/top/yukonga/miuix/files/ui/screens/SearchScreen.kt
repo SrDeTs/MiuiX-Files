@@ -44,9 +44,10 @@ import java.net.Inet4Address
 import java.net.NetworkInterface
 import java.net.ServerSocket
 
-/** Procurar: busca recursiva por nome no armazenamento interno. */
+/** Procurar: busca rápida por nome via MediaStore + diretórios principais. */
 @Composable
 fun SearchScreen(onBack: () -> Unit, onOpen: (FileItem) -> Unit) {
+    val context = LocalContext.current
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<FileItem>>(emptyList()) }
     var searching by remember { mutableStateOf(false) }
@@ -54,15 +55,42 @@ fun SearchScreen(onBack: () -> Unit, onOpen: (FileItem) -> Unit) {
 
     LaunchedEffect(query) {
         if (query.length < 2) { results = emptyList(); return@LaunchedEffect }
-        delay(300)
+        delay(120)
         searching = true
-        val q = query.lowercase()
+        val q = query.trim().lowercase()
         results = withContext(Dispatchers.IO) {
             val out = ArrayList<FileItem>()
+            val seen = HashSet<String>()
+            // 1. Consulta indexada no MediaStore (<15ms)
+            runCatching {
+                val uri = android.provider.MediaStore.Files.getContentUri("external")
+                val proj = arrayOf(
+                    android.provider.MediaStore.MediaColumns.DATA,
+                    android.provider.MediaStore.MediaColumns.SIZE,
+                    android.provider.MediaStore.MediaColumns.DATE_MODIFIED
+                )
+                context.contentResolver.query(
+                    uri, proj,
+                    "${android.provider.MediaStore.MediaColumns.DATA} LIKE ?",
+                    arrayOf("%$q%"),
+                    "${android.provider.MediaStore.MediaColumns.DATE_MODIFIED} DESC"
+                )?.use { c ->
+                    val dCol = c.getColumnIndexOrThrow(android.provider.MediaStore.MediaColumns.DATA)
+                    while (c.moveToNext() && out.size < 200) {
+                        val p = c.getString(dCol) ?: continue
+                        val f = File(p)
+                        if (f.name.lowercase().contains(q) && f.exists() && seen.add(p)) {
+                            out.add(FileItem(f))
+                        }
+                    }
+                }
+            }
+            // 2. Complementa com busca rasa (até 2 níveis) na raiz
             Environment.getExternalStorageDirectory().walkTopDown()
+                .maxDepth(2)
                 .onEnter { !it.name.startsWith(".") && it.name != "Android" }
-                .filter { it.name.lowercase().contains(q) }
-                .take(300)
+                .filter { it.name.lowercase().contains(q) && seen.add(it.absolutePath) }
+                .take(100)
                 .forEach { out.add(FileItem(it)) }
             out
         }
@@ -83,9 +111,10 @@ fun SearchScreen(onBack: () -> Unit, onOpen: (FileItem) -> Unit) {
 /** Histórico: arquivos modificados recentemente. */
 @Composable
 fun HistoryScreen(onBack: () -> Unit, onOpen: (FileItem) -> Unit) {
-    var files by remember { mutableStateOf<List<FileItem>?>(null) }
+    val context = LocalContext.current
+    var files by remember { mutableStateOf(StorageManager.getCachedRecents()) }
     BackHandler(onBack = onBack)
-    LaunchedEffect(Unit) { files = StorageManager.getRecentFiles(limit = 200) }
+    LaunchedEffect(Unit) { files = StorageManager.getRecentFiles(limit = 200, context = context) }
     EsSubScreen("Histórico", onBack) {
         if (files == null) Text("Carregando...", color = Color(0xFFA0A3A6), fontSize = 13.sp, modifier = Modifier.padding(16.dp))
         FileRows(files.orEmpty(), onOpen)
@@ -383,9 +412,9 @@ fun NetworkScreen(title: String, onBack: () -> Unit, onOpenPcServer: () -> Unit)
 @Composable
 fun SenderScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    var files by remember { mutableStateOf<List<FileItem>>(emptyList()) }
+    var files by remember { mutableStateOf(StorageManager.getCachedRecents().orEmpty()) }
     BackHandler(onBack = onBack)
-    LaunchedEffect(Unit) { files = StorageManager.getRecentFiles(limit = 100) }
+    LaunchedEffect(Unit) { files = StorageManager.getRecentFiles(limit = 100, context = context) }
 
     EsSubScreen("Remetente (Enviar Arquivos)", onBack) {
         Text(

@@ -102,8 +102,8 @@ fun HomeScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var volumes by remember { mutableStateOf<List<StorageVolumeInfo>>(emptyList()) }
-    var recentFiles by remember { mutableStateOf<List<FileItem>>(emptyList()) }
+    var volumes by remember { mutableStateOf(StorageManager.getCachedVolumes() ?: StorageManager.getStorageVolumes(context)) }
+    var recentFiles by remember { mutableStateOf(StorageManager.getCachedRecents() ?: emptyList()) }
     var showRecent by remember { mutableStateOf(true) }
     var drawerOpen by remember { mutableStateOf(false) }
     var showNew by remember { mutableStateOf(false) }
@@ -111,11 +111,23 @@ fun HomeScreen(
     var newName by remember { mutableStateOf("") }
     val groups = remember(recentFiles) { groupRecents(recentFiles) }
 
-    fun reload() {
+    fun reload(force: Boolean = false) {
         volumes = StorageManager.getStorageVolumes(context)
-        scope.launch { recentFiles = StorageManager.getRecentFiles() }
+        scope.launch {
+            recentFiles = StorageManager.getRecentFiles(context = context, forceRefresh = force)
+        }
     }
-    LaunchedEffect(Unit) { reload() }
+    LaunchedEffect(Unit) {
+        if (recentFiles.isEmpty()) reload(force = false)
+        // Pré-aquece em background as categorias e lista de apps para abrir com 0ms de espera
+        scope.launch {
+            FileCategory.entries.forEach { cat ->
+                StorageManager.getCategoryFiles(cat, context = context)
+            }
+            top.yukonga.miuix.files.core.apps.AppManager.getInstalledApps(context)
+            top.yukonga.miuix.files.core.cleaner.CleanerEngine.scanJunk(context)
+        }
+    }
     BackHandler(enabled = drawerOpen) { drawerOpen = false }
 
     Box(modifier.fillMaxSize().background(EsBgColor)) {
@@ -197,7 +209,7 @@ fun HomeScreen(
             EsBottomBar(
                 onNewClick = { newName = ""; showNew = true },
                 onSearchClick = onSearch,
-                onRefreshClick = { reload() },
+                onRefreshClick = { reload(force = true) },
                 onWindowsClick = { showWindows = true },
                 onHistoryClick = onHistory
             )

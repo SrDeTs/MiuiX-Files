@@ -36,14 +36,15 @@ fun CleanerScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var scanResult by remember { mutableStateOf<CleanScanResult?>(null) }
-    var isScanning by remember { mutableStateOf(true) }
+    val cached = remember { CleanerEngine.getCachedScan() }
+    var scanResult by remember { mutableStateOf(cached) }
+    var isScanning by remember { mutableStateOf(cached == null) }
     var isCleaning by remember { mutableStateOf(false) }
     var cleanedTotalBytes by remember { mutableStateOf<Long?>(null) }
 
     fun runScan() {
         scope.launch {
-            isScanning = true
+            if (scanResult == null) isScanning = true
             cleanedTotalBytes = null
             scanResult = CleanerEngine.scanJunk(context)
             isScanning = false
