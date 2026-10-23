@@ -94,24 +94,30 @@ fun EsTopCategoryRow(
 @Composable
 fun EsToolGrid(
     onCleanerClick: () -> Unit,
-    onAppManagerClick: () -> Unit,
+    onCloudClick: () -> Unit = {},
+    onArchiveClick: () -> Unit = {},
+    onSenderClick: () -> Unit = {},
+    onTextEditorClick: () -> Unit = {},
+    onNetworkClick: () -> Unit = {},
     onRecycleBinClick: () -> Unit,
     onDownloadClick: () -> Unit,
+    onViewPcClick: () -> Unit = {},
+    onAppManagerClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val toolsRow1 = listOf(
         ToolItem("Cleaner", R.drawable.es_tool_cleaner, onCleanerClick),
-        ToolItem("Unid. de nu...", R.drawable.es_tool_cloud, {}),
-        ToolItem("Arquivado...", R.drawable.es_tool_archive, {}),
-        ToolItem("Remetente", R.drawable.es_tool_sender, {}),
-        ToolItem("Editor de t...", R.drawable.es_tool_texteditor, {})
+        ToolItem("Unid. de nu...", R.drawable.es_tool_cloud, onCloudClick),
+        ToolItem("Arquivado...", R.drawable.es_tool_archive, onArchiveClick),
+        ToolItem("Remetente", R.drawable.es_tool_sender, onSenderClick),
+        ToolItem("Editor de t...", R.drawable.es_tool_texteditor, onTextEditorClick)
     )
 
     val toolsRow2 = listOf(
-        ToolItem("Rede", R.drawable.es_tool_network, {}),
+        ToolItem("Rede", R.drawable.es_tool_network, onNetworkClick),
         ToolItem("Reciclagem", R.drawable.es_tool_recycle, onRecycleBinClick),
         ToolItem("Downloader", R.drawable.es_tool_downloader, onDownloadClick),
-        ToolItem("Ver no PC", R.drawable.es_tool_viewpc, {}),
+        ToolItem("Ver no PC", R.drawable.es_tool_viewpc, onViewPcClick),
         ToolItem("Todas as F...", R.drawable.es_tool_alltools, onAppManagerClick)
     )
 

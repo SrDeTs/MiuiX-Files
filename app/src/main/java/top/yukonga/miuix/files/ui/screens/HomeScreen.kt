@@ -93,6 +93,11 @@ fun HomeScreen(
     onOpenFile: (File) -> Unit,
     onSearch: () -> Unit = {},
     onHistory: () -> Unit = {},
+    onCloud: () -> Unit = {},
+    onSender: () -> Unit = {},
+    onTextEditor: () -> Unit = {},
+    onNetwork: () -> Unit = {},
+    onViewPc: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -151,9 +156,15 @@ fun HomeScreen(
                 item {
                     EsToolGrid(
                         onCleanerClick = onNavigateCleaner,
-                        onAppManagerClick = onNavigateAppManager,
+                        onCloudClick = onCloud,
+                        onArchiveClick = { onNavigateCategory(FileCategory.ARCHIVES) },
+                        onSenderClick = onSender,
+                        onTextEditorClick = onTextEditor,
+                        onNetworkClick = onNetwork,
                         onRecycleBinClick = { onNavigateCategory(FileCategory.RECYCLE_BIN) },
-                        onDownloadClick = { onNavigateCategory(FileCategory.DOWNLOADS) }
+                        onDownloadClick = { onNavigateCategory(FileCategory.DOWNLOADS) },
+                        onViewPcClick = onViewPc,
+                        onAppManagerClick = onNavigateAppManager
                     )
                 }
                 // Arquivado Recentemente: tudo dentro de um único card, como no ES

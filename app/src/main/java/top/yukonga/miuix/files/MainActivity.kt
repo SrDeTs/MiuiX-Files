@@ -33,6 +33,10 @@ sealed class Screen {
     data object Settings : Screen()
     data object Search : Screen()
     data object History : Screen()
+    data class TextEditor(val file: File? = null) : Screen()
+    data object ViewOnPc : Screen()
+    data class Network(val title: String) : Screen()
+    data object Sender : Screen()
 }
 
 class MainActivity : ComponentActivity() {
@@ -56,6 +60,15 @@ class MainActivity : ComponentActivity() {
                     Box(
                         modifier = Modifier.fillMaxSize()
                     ) {
+                        val textExts = remember { setOf("txt", "md", "json", "xml", "log", "csv", "ini", "conf", "prop", "sh", "kt", "java", "html", "css", "js") }
+                        fun handleOpen(file: File) {
+                            if (file.extension.lowercase() in textExts) {
+                                backStack.add(Screen.TextEditor(file))
+                            } else {
+                                openFile(file)
+                            }
+                        }
+
                         when (val screen = currentScreen) {
                             is Screen.Home -> {
                                 HomeScreen(
@@ -64,31 +77,51 @@ class MainActivity : ComponentActivity() {
                                     onNavigateCleaner = { backStack.add(Screen.Cleaner) },
                                     onNavigateAppManager = { backStack.add(Screen.AppManager) },
                                     onNavigateSettings = { backStack.add(Screen.Settings) },
-                                    onOpenFile = { file -> openFile(file) },
+                                    onOpenFile = { file -> handleOpen(file) },
                                     onSearch = { backStack.add(Screen.Search) },
-                                    onHistory = { backStack.add(Screen.History) }
+                                    onHistory = { backStack.add(Screen.History) },
+                                    onCloud = { backStack.add(Screen.Network("Unidade de Nuvem")) },
+                                    onSender = { backStack.add(Screen.Sender) },
+                                    onTextEditor = { backStack.add(Screen.TextEditor(null)) },
+                                    onNetwork = { backStack.add(Screen.Network("Rede Local (LAN)")) },
+                                    onViewPc = { backStack.add(Screen.ViewOnPc) }
                                 )
                             }
                             is Screen.Search -> SearchScreen(
                                 onBack = { backStack.removeAt(backStack.size - 1) },
-                                onOpen = { f -> if (f.isDirectory) backStack.add(Screen.Explorer(f.file)) else openFile(f.file) }
+                                onOpen = { f -> if (f.isDirectory) backStack.add(Screen.Explorer(f.file)) else handleOpen(f.file) }
                             )
                             is Screen.History -> HistoryScreen(
                                 onBack = { backStack.removeAt(backStack.size - 1) },
-                                onOpen = { f -> if (f.isDirectory) backStack.add(Screen.Explorer(f.file)) else openFile(f.file) }
+                                onOpen = { f -> if (f.isDirectory) backStack.add(Screen.Explorer(f.file)) else handleOpen(f.file) }
+                            )
+                            is Screen.TextEditor -> TextEditorScreen(
+                                initialFile = screen.file,
+                                onBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) }
+                            )
+                            is Screen.ViewOnPc -> ViewOnPcScreen(
+                                onBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) }
+                            )
+                            is Screen.Network -> NetworkScreen(
+                                title = screen.title,
+                                onBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) },
+                                onOpenPcServer = { backStack.add(Screen.ViewOnPc) }
+                            )
+                            is Screen.Sender -> SenderScreen(
+                                onBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) }
                             )
                             is Screen.Explorer -> {
                                 ExplorerScreen(
                                     initialDir = screen.directory,
                                     onNavigateBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) },
-                                    onOpenFile = { file -> openFile(file) }
+                                    onOpenFile = { file -> handleOpen(file) }
                                 )
                             }
                             is Screen.Category -> {
                                 CategoryScreen(
                                     category = screen.category,
                                     onNavigateBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) },
-                                    onOpenFile = { file -> openFile(file) }
+                                    onOpenFile = { file -> handleOpen(file) }
                                 )
                             }
                             is Screen.Cleaner -> {

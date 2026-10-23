@@ -112,6 +112,11 @@ object StorageManager {
             val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
             return@withContext listFiles(downloadDir)
         }
+        if (category == FileCategory.RECYCLE_BIN) {
+            val trashDir = File(Environment.getExternalStorageDirectory(), ".estrongs/recycle")
+            if (!trashDir.exists()) trashDir.mkdirs()
+            return@withContext listFiles(trashDir, showHidden = true)
+        }
 
         val result = mutableListOf<FileItem>()
         fun scan(dir: File) {

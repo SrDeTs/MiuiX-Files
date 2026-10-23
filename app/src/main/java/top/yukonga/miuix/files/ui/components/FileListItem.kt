@@ -62,12 +62,22 @@ fun FileListItem(
             .padding(horizontal = 14.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Real ES File Explorer Icon
-        Image(
-            painter = painterResource(iconRes),
-            contentDescription = null,
-            modifier = Modifier.size(38.dp)
-        )
+        // Real ES File Explorer Icon or Media Thumbnail
+        if (isMediaFile(item.file)) {
+            FileThumbnail(
+                file = item.file,
+                fallbackRes = iconRes,
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(4.dp))
+            )
+        } else {
+            Image(
+                painter = painterResource(iconRes),
+                contentDescription = null,
+                modifier = Modifier.size(38.dp)
+            )
+        }
 
         Spacer(modifier = Modifier.width(14.dp))
 

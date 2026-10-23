@@ -64,6 +64,8 @@ fun ExplorerScreen(
     var showRenameDialog by remember { mutableStateOf(false) }
     var renameFileName by remember { mutableStateOf("") }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showSearchBar by remember { mutableStateOf(false) }
+    var showMoreMenu by remember { mutableStateOf(false) }
 
     var clipboardState by remember { mutableStateOf(FileOperations.currentClipboard) }
 
@@ -201,11 +203,37 @@ fun ExplorerScreen(
             }
 
             // Path Breadcrumb Bar with Right Gauge Chip
+            val totalSpace = currentDir.totalSpace
+            val usedPct = if (totalSpace > 0) (((totalSpace - currentDir.freeSpace) * 100L) / totalSpace).toInt().coerceIn(0, 100) else 22
             EsPathBar(
                 currentDir = currentDir,
                 onNavigate = { target -> currentDir = target },
-                percentage = 22
+                percentage = usedPct
             )
+
+            if (showSearchBar) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        label = "Filtrar nesta pasta...",
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    TextButton(
+                        text = "✕",
+                        onClick = {
+                            searchQuery = ""
+                            showSearchBar = false
+                        }
+                    )
+                }
+            }
 
             // Content Area (Grid or List)
             Box(modifier = Modifier.weight(1f)) {
@@ -352,12 +380,17 @@ fun ExplorerScreen(
                             newFolderName = ""
                             showNewFolderDialog = true
                         }
-                        ExplorerBottomActionItem("Procurar", R.drawable.toolbar_search, modifier = Modifier.weight(1f)) {}
+                        ExplorerBottomActionItem("Procurar", R.drawable.toolbar_search, modifier = Modifier.weight(1f)) {
+                            showSearchBar = !showSearchBar
+                            if (!showSearchBar) searchQuery = ""
+                        }
                         ExplorerBottomActionItem("Atualizar", R.drawable.toolbar_refresh, modifier = Modifier.weight(1f)) { refreshFiles() }
                         ExplorerBottomActionItem("Visualizar", R.drawable.toolbar_view, modifier = Modifier.weight(1f)) {
                             isGridView = !isGridView
                         }
-                        ExplorerBottomActionItem("Mais", R.drawable.toolbar_more, modifier = Modifier.weight(1f)) {}
+                        ExplorerBottomActionItem("Mais", R.drawable.toolbar_more, modifier = Modifier.weight(1f)) {
+                            showMoreMenu = true
+                        }
                     }
                 }
             }
@@ -475,6 +508,56 @@ fun ExplorerScreen(
                             Text("Excluir")
                         }
                     }
+                }
+            }
+        )
+    }
+
+    if (showMoreMenu) {
+        OverlayDialog(
+            show = showMoreMenu,
+            onDismissRequest = { showMoreMenu = false },
+            title = "Opções e Ordenação",
+            content = {
+                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        text = "Ordenar por Nome (A-Z)",
+                        onClick = { currentSort = SortOption.NAME_ASC; showMoreMenu = false },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    TextButton(
+                        text = "Ordenar por Nome (Z-A)",
+                        onClick = { currentSort = SortOption.NAME_DESC; showMoreMenu = false },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    TextButton(
+                        text = "Ordenar por Data (Mais recente)",
+                        onClick = { currentSort = SortOption.DATE_DESC; showMoreMenu = false },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    TextButton(
+                        text = "Ordenar por Tamanho (Maior)",
+                        onClick = { currentSort = SortOption.SIZE_DESC; showMoreMenu = false },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    TextButton(
+                        text = if (selectedPaths.size == displayFiles.size && displayFiles.isNotEmpty()) "Desmarcar Tudo" else "Selecionar Tudo (${displayFiles.size})",
+                        onClick = {
+                            selectedPaths = if (selectedPaths.size == displayFiles.size) emptySet()
+                            else displayFiles.map { it.path }.toSet()
+                            showMoreMenu = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    TextButton(
+                        text = if (showHidden) "Ocultar Arquivos Ocultos" else "Mostrar Arquivos Ocultos",
+                        onClick = {
+                            showHidden = !showHidden
+                            prefs.edit().putBoolean(MiuiXFilesPreferences.KEY_SHOW_HIDDEN, showHidden).apply()
+                            showMoreMenu = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
         )

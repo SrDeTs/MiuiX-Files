@@ -5,9 +5,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
@@ -24,9 +26,14 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.files.R
 import top.yukonga.miuix.files.core.model.FileCategory
 import top.yukonga.miuix.files.core.model.FileItem
+import top.yukonga.miuix.files.core.model.SortOption
 import top.yukonga.miuix.files.core.storage.StorageManager
 import top.yukonga.miuix.files.ui.components.FileGridItem
+import top.yukonga.miuix.files.ui.components.FileListItem
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.utils.SinkFeedback
 import top.yukonga.miuix.kmp.utils.pressable
 import java.io.File
@@ -41,6 +48,21 @@ fun CategoryScreen(
     val scope = rememberCoroutineScope()
     var files by remember { mutableStateOf<List<FileItem>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    var isGridView by remember { mutableStateOf(true) }
+    var showSearchBar by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    var currentSort by remember { mutableStateOf(SortOption.DATE_DESC) }
+    var showMoreMenu by remember { mutableStateOf(false) }
+
+    val displayFiles = remember(files, searchQuery, currentSort) {
+        val filtered = if (searchQuery.isBlank()) files else files.filter { it.name.contains(searchQuery, ignoreCase = true) }
+        when (currentSort) {
+            SortOption.NAME_ASC -> filtered.sortedBy { it.name.lowercase() }
+            SortOption.NAME_DESC -> filtered.sortedByDescending { it.name.lowercase() }
+            SortOption.SIZE_DESC -> filtered.sortedByDescending { it.size }
+            else -> filtered.sortedByDescending { it.lastModified }
+        }
+    }
 
     LaunchedEffect(category) {
         isLoading = true
@@ -201,7 +223,25 @@ fun CategoryScreen(
                 }
             }
 
-            // Main Content Grid
+            if (showSearchBar) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        label = "Filtrar em ${category.label}...",
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    TextButton(text = "✕", onClick = { searchQuery = ""; showSearchBar = false })
+                }
+            }
+
+            // Main Content Grid or List
             Box(modifier = Modifier.weight(1f)) {
                 if (isLoading) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -211,7 +251,7 @@ fun CategoryScreen(
                             color = Color(0xFF9E9E9E)
                         )
                     }
-                } else if (files.isEmpty()) {
+                } else if (displayFiles.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
                             text = "Pasta Vazia",
@@ -219,7 +259,7 @@ fun CategoryScreen(
                             color = Color(0xFF9E9E9E)
                         )
                     }
-                } else {
+                } else if (isGridView) {
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(4),
                         modifier = Modifier.fillMaxSize(),
@@ -227,8 +267,23 @@ fun CategoryScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(files, key = { it.path }) { item ->
+                        items(displayFiles, key = { it.path }) { item ->
                             FileGridItem(
+                                item = item,
+                                isSelected = false,
+                                isSelectionMode = false,
+                                onClick = { onOpenFile(item.file) },
+                                onLongClick = {}
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = 12.dp)
+                    ) {
+                        items(displayFiles, key = { it.path }) { item ->
+                            FileListItem(
                                 item = item,
                                 isSelected = false,
                                 isSelectionMode = false,
@@ -261,8 +316,13 @@ fun CategoryScreen(
                     horizontalArrangement = Arrangement.SpaceAround,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    CategoryBottomItem("Novo", R.drawable.toolbar_new, modifier = Modifier.weight(1f)) {}
-                    CategoryBottomItem("Procurar", R.drawable.toolbar_search, modifier = Modifier.weight(1f)) {}
+                    CategoryBottomItem("Novo", R.drawable.toolbar_new, modifier = Modifier.weight(1f)) {
+                        showMoreMenu = true
+                    }
+                    CategoryBottomItem("Procurar", R.drawable.toolbar_search, modifier = Modifier.weight(1f)) {
+                        showSearchBar = !showSearchBar
+                        if (!showSearchBar) searchQuery = ""
+                    }
                     CategoryBottomItem("Atualizar", R.drawable.toolbar_refresh, modifier = Modifier.weight(1f)) {
                         scope.launch {
                             isLoading = true
@@ -270,11 +330,47 @@ fun CategoryScreen(
                             isLoading = false
                         }
                     }
-                    CategoryBottomItem("Visualizar", R.drawable.toolbar_view, modifier = Modifier.weight(1f)) {}
-                    CategoryBottomItem("Mais", R.drawable.toolbar_more, modifier = Modifier.weight(1f)) {}
+                    CategoryBottomItem("Visualizar", R.drawable.toolbar_view, modifier = Modifier.weight(1f)) {
+                        isGridView = !isGridView
+                    }
+                    CategoryBottomItem("Mais", R.drawable.toolbar_more, modifier = Modifier.weight(1f)) {
+                        showMoreMenu = true
+                    }
                 }
             }
         }
+    }
+
+    if (showMoreMenu) {
+        OverlayDialog(
+            show = showMoreMenu,
+            onDismissRequest = { showMoreMenu = false },
+            title = "Ordenar ${category.label}",
+            content = {
+                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        text = "Ordenar por Data (Mais recente)",
+                        onClick = { currentSort = SortOption.DATE_DESC; showMoreMenu = false },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    TextButton(
+                        text = "Ordenar por Nome (A-Z)",
+                        onClick = { currentSort = SortOption.NAME_ASC; showMoreMenu = false },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    TextButton(
+                        text = "Ordenar por Nome (Z-A)",
+                        onClick = { currentSort = SortOption.NAME_DESC; showMoreMenu = false },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    TextButton(
+                        text = "Ordenar por Tamanho (Maior)",
+                        onClick = { currentSort = SortOption.SIZE_DESC; showMoreMenu = false },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        )
     }
 }
 

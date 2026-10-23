@@ -93,11 +93,21 @@ fun FileGridItem(
                 modifier = Modifier.size(56.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Image(
-                    painter = painterResource(iconRes),
-                    contentDescription = item.name,
-                    modifier = Modifier.size(56.dp)
-                )
+                if (isMediaFile(item.file)) {
+                    FileThumbnail(
+                        file = item.file,
+                        fallbackRes = iconRes,
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                    )
+                } else {
+                    Image(
+                        painter = painterResource(iconRes),
+                        contentDescription = item.name,
+                        modifier = Modifier.size(56.dp)
+                    )
+                }
 
                 if (item.isDirectory && folderBadgeIcon != null) {
                     Image(
