@@ -1,6 +1,7 @@
 package top.yukonga.miuix.files.ui.screens
 
 import android.content.Context
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -35,20 +36,17 @@ fun SettingsScreen(
 
     val themeLabels = listOf("Seguir Sistema", "Claro", "Escuro", "Monet MIUI")
 
-    Column(modifier = modifier.fillMaxSize()) {
-        TopAppBar(
-            title = "Configurações",
-            navigationIcon = {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(onClick = onNavigateBack)
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
-                ) {
-                    Text(text = "←", fontSize = 20.sp)
-                }
+    Column(modifier = modifier.fillMaxSize().background(top.yukonga.miuix.files.ui.components.EsBgColor)) {
+        Row(
+            Modifier.fillMaxWidth().background(top.yukonga.miuix.files.ui.components.EsTopColor).statusBarsPadding().padding(horizontal = 8.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onNavigateBack), contentAlignment = Alignment.Center) {
+                androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(top.yukonga.miuix.files.R.drawable.toolbar_return), null, Modifier.size(24.dp), colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(androidx.compose.ui.graphics.Color.White))
             }
-        )
+            Spacer(Modifier.width(8.dp))
+            Text("Configurações", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = androidx.compose.ui.graphics.Color.White)
+        }
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),

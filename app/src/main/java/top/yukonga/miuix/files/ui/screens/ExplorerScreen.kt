@@ -66,6 +66,8 @@ fun ExplorerScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showSearchBar by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
+    var showSelectionMoreDialog by remember { mutableStateOf(false) }
+    var showPropertiesDialog by remember { mutableStateOf(false) }
 
     var clipboardState by remember { mutableStateOf(FileOperations.currentClipboard) }
 
@@ -348,13 +350,8 @@ fun ExplorerScreen(
                             showRenameDialog = true
                         }
                     },
-                    onZip = {
-                        scope.launch {
-                            val selectedFiles = files.filter { selectedPaths.contains(it.path) }.map { it.file }
-                            val zipName = if (selectedFiles.size == 1) "${selectedFiles.first().nameWithoutExtension}.zip" else "Arquivo.zip"
-                            FileOperations.zipFiles(selectedFiles, File(currentDir, zipName))
-                            refreshFiles()
-                        }
+                    onMore = {
+                        showSelectionMoreDialog = true
                     }
                 )
             } else {
@@ -561,6 +558,119 @@ fun ExplorerScreen(
                         },
                         modifier = Modifier.fillMaxWidth()
                     )
+                }
+            }
+        )
+    }
+
+    if (showSelectionMoreDialog) {
+        val selectedFiles = remember(files, selectedPaths) {
+            files.filter { selectedPaths.contains(it.path) }.map { it.file }
+        }
+        OverlayDialog(
+            show = showSelectionMoreDialog,
+            onDismissRequest = { showSelectionMoreDialog = false },
+            title = "Ações (${selectedFiles.size})",
+            content = {
+                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        text = "Compactar em .ZIP",
+                        onClick = {
+                            showSelectionMoreDialog = false
+                            scope.launch {
+                                val zipName = if (selectedFiles.size == 1) "${selectedFiles.first().nameWithoutExtension}.zip" else "Arquivo.zip"
+                                FileOperations.zipFiles(selectedFiles, File(currentDir, zipName))
+                                refreshFiles()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (selectedFiles.size == 1 && selectedFiles.first().extension.lowercase() == "zip") {
+                        TextButton(
+                            text = "Extrair Arquivo .ZIP Aqui",
+                            onClick = {
+                                showSelectionMoreDialog = false
+                                val zf = selectedFiles.first()
+                                scope.launch {
+                                    FileOperations.unzip(zf, File(currentDir, zf.nameWithoutExtension))
+                                    refreshFiles()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    TextButton(
+                        text = "Compartilhar / Enviar",
+                        onClick = {
+                            showSelectionMoreDialog = false
+                            val f = selectedFiles.firstOrNull() ?: return@TextButton
+                            runCatching {
+                                val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", f)
+                                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "*/*"
+                                    putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(android.content.Intent.createChooser(intent, "Compartilhar ${f.name}"))
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    TextButton(
+                        text = "Propriedades e Checksum (MD5)",
+                        onClick = {
+                            showSelectionMoreDialog = false
+                            showPropertiesDialog = true
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        )
+    }
+
+    if (showPropertiesDialog) {
+        val selectedFiles = remember(files, selectedPaths) {
+            files.filter { selectedPaths.contains(it.path) }.map { it.file }
+        }
+        val first = selectedFiles.firstOrNull()
+        var md5 by remember(first) { mutableStateOf("Calculando...") }
+        LaunchedEffect(first) {
+            if (first != null && first.isFile && first.length() < 150 * 1024 * 1024) {
+                md5 = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    runCatching {
+                        val digest = java.security.MessageDigest.getInstance("MD5")
+                        first.inputStream().use { input ->
+                            val buf = ByteArray(16384)
+                            var r: Int
+                            while (input.read(buf).also { r = it } > 0) digest.update(buf, 0, r)
+                        }
+                        digest.digest().joinToString("") { "%02x".format(it) }
+                    }.getOrDefault("-")
+                }
+            } else {
+                md5 = "-"
+            }
+        }
+        OverlayDialog(
+            show = showPropertiesDialog,
+            onDismissRequest = { showPropertiesDialog = false },
+            title = "Propriedades",
+            content = {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (first != null) {
+                        Text("Nome: ${first.name}", fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Caminho: ${first.absolutePath}", fontSize = 12.sp, color = Color(0xFFB0B3B8))
+                        Text("Tipo: ${if (first.isDirectory) "Pasta" else "Arquivo (.${first.extension})"}", fontSize = 12.sp, color = Color(0xFFB0B3B8))
+                        Text("Tamanho: ${StorageManager.formatFileSize(selectedFiles.sumOf { if (it.isDirectory) 0L else it.length() })}", fontSize = 12.sp, color = Color(0xFFB0B3B8))
+                        Text("Modificado: ${StorageManager.formatDate(first.lastModified())}", fontSize = 12.sp, color = Color(0xFFB0B3B8))
+                        Text("Permissões: ${if (first.canRead()) "r" else "-"}${if (first.canWrite()) "w" else "-"}${if (first.canExecute()) "x" else "-"}", fontSize = 12.sp, color = Color(0xFFB0B3B8))
+                        if (first.isFile) {
+                            Text("MD5: $md5", fontSize = 11.5.sp, color = Color(0xFF3FE0F0))
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    TextButton(text = "Fechar", onClick = { showPropertiesDialog = false }, modifier = Modifier.fillMaxWidth())
                 }
             }
         )

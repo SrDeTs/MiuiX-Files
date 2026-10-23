@@ -34,6 +34,9 @@ sealed class Screen {
     data object Search : Screen()
     data object History : Screen()
     data class TextEditor(val file: File? = null) : Screen()
+    data class ImageViewer(val file: File) : Screen()
+    data class ZipViewer(val file: File) : Screen()
+    data class AudioPlayer(val file: File) : Screen()
     data object ViewOnPc : Screen()
     data class Network(val title: String) : Screen()
     data object Sender : Screen()
@@ -61,11 +64,16 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxSize()
                     ) {
                         val textExts = remember { setOf("txt", "md", "json", "xml", "log", "csv", "ini", "conf", "prop", "sh", "kt", "java", "html", "css", "js") }
+                        val imgExts = remember { setOf("jpg", "jpeg", "png", "webp", "bmp", "gif", "heic") }
+                        val audioExts = remember { setOf("mp3", "wav", "flac", "m4a", "ogg", "aac", "opus") }
                         fun handleOpen(file: File) {
-                            if (file.extension.lowercase() in textExts) {
-                                backStack.add(Screen.TextEditor(file))
-                            } else {
-                                openFile(file)
+                            val ext = file.extension.lowercase()
+                            when {
+                                ext in textExts -> backStack.add(Screen.TextEditor(file))
+                                ext in imgExts -> backStack.add(Screen.ImageViewer(file))
+                                ext in audioExts -> backStack.add(Screen.AudioPlayer(file))
+                                ext == "zip" -> backStack.add(Screen.ZipViewer(file))
+                                else -> openFile(file)
                             }
                         }
 
@@ -97,6 +105,22 @@ class MainActivity : ComponentActivity() {
                             )
                             is Screen.TextEditor -> TextEditorScreen(
                                 initialFile = screen.file,
+                                onBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) }
+                            )
+                            is Screen.ImageViewer -> ImageViewerScreen(
+                                file = screen.file,
+                                onBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) }
+                            )
+                            is Screen.ZipViewer -> ZipViewerScreen(
+                                zipFile = screen.file,
+                                onBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) },
+                                onNavigateDir = { dir ->
+                                    backStack.removeAt(backStack.size - 1)
+                                    backStack.add(Screen.Explorer(dir))
+                                }
+                            )
+                            is Screen.AudioPlayer -> AudioPlayerScreen(
+                                file = screen.file,
                                 onBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) }
                             )
                             is Screen.ViewOnPc -> ViewOnPcScreen(

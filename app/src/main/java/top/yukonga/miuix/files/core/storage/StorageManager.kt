@@ -153,18 +153,19 @@ object StorageManager {
                 val dateCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DATE_MODIFIED)
                 while (cursor.moveToNext() && out.size < limit) {
                     val path = cursor.getString(dataCol) ?: continue
-                    val f = File(path)
-                    if (!f.exists() || f.name.startsWith(".")) continue
+                    val slashIdx = path.lastIndexOf('/')
+                    val name = if (slashIdx >= 0) path.substring(slashIdx + 1) else path
+                    if (name.isEmpty() || name.startsWith(".")) continue
                     val size = cursor.getLong(sizeCol)
                     val modified = cursor.getLong(dateCol) * 1000L
                     out.add(
                         FileItem(
-                            file = f,
-                            name = f.name,
+                            file = File(path),
+                            name = name,
                             path = path,
                             isDirectory = false,
-                            size = if (size > 0) size else f.length(),
-                            lastModified = if (modified > 0) modified else f.lastModified()
+                            size = size,
+                            lastModified = modified
                         )
                     )
                 }

@@ -19,6 +19,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -219,6 +221,213 @@ fun TextEditorScreen(initialFile: File?, onBack: () -> Unit) {
                     label = "Conteúdo do arquivo",
                     modifier = Modifier.fillMaxWidth().weight(1f)
                 )
+            }
+        }
+    }
+}
+
+/** ES Image Viewer: visualizador de imagens embutido com zoom e compartilhamento. */
+@Composable
+fun ImageViewerScreen(file: File, onBack: () -> Unit) {
+    val context = LocalContext.current
+    var bmp by remember(file.path) { mutableStateOf<ImageBitmap?>(null) }
+    BackHandler(onBack = onBack)
+
+    LaunchedEffect(file.path) {
+        bmp = withContext(Dispatchers.IO) {
+            runCatching {
+                val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                android.graphics.BitmapFactory.decodeFile(file.path, o)
+                var s = 1
+                while (o.outWidth / s > 1920 || o.outHeight / s > 1920) s *= 2
+                android.graphics.BitmapFactory.decodeFile(file.path, android.graphics.BitmapFactory.Options().apply { inSampleSize = s })
+                    ?.asImageBitmap()
+            }.getOrNull()
+        }
+    }
+
+    EsSubScreen(file.name, onBack) {
+        Box(Modifier.weight(1f).fillMaxWidth().background(Color.Black), contentAlignment = Alignment.Center) {
+            val b = bmp
+            if (b != null) {
+                Image(b, contentDescription = file.name, modifier = Modifier.fillMaxSize())
+            } else {
+                Text("Carregando imagem...", color = Color(0xFFA0A3A6), fontSize = 13.sp)
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().background(EsTopColor).padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("${StorageManager.formatFileSize(file.length())} • ${StorageManager.formatDate(file.lastModified())}", fontSize = 12.sp, color = Color(0xFFB0B3B8))
+            Button(onClick = {
+                runCatching {
+                    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "image/*"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(Intent.createChooser(intent, "Compartilhar ${file.name}"))
+                }
+            }) {
+                Text("Compartilhar")
+            }
+        }
+    }
+}
+
+/** ES Zip Viewer: inspeciona entradas de um arquivo .zip e extrai com 1 toque. */
+@Composable
+fun ZipViewerScreen(zipFile: File, onBack: () -> Unit, onNavigateDir: (File) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var entries by remember { mutableStateOf<List<Pair<String, Long>>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var extracting by remember { mutableStateOf(false) }
+    BackHandler(onBack = onBack)
+
+    LaunchedEffect(zipFile.path) {
+        entries = withContext(Dispatchers.IO) {
+            val out = ArrayList<Pair<String, Long>>()
+            runCatching {
+                java.util.zip.ZipFile(zipFile).use { zf ->
+                    val e = zf.entries()
+                    while (e.hasMoreElements() && out.size < 500) {
+                        val ze = e.nextElement()
+                        out.add(ze.name to ze.size.coerceAtLeast(0L))
+                    }
+                }
+            }
+            out
+        }
+        loading = false
+    }
+
+    EsSubScreen(zipFile.name, onBack) {
+        Row(
+            Modifier.fillMaxWidth().padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("${entries.size} itens no arquivo", fontSize = 13.sp, color = Color(0xFFA0A3A6))
+            Button(
+                enabled = !extracting,
+                onClick = {
+                    scope.launch {
+                        extracting = true
+                        val targetDir = File(zipFile.parentFile, zipFile.nameWithoutExtension)
+                        val res = top.yukonga.miuix.files.core.storage.FileOperations.unzip(zipFile, targetDir)
+                        extracting = false
+                        if (res.isSuccess) {
+                            Toast.makeText(context, "Extraído para ${targetDir.name}", Toast.LENGTH_SHORT).show()
+                            onNavigateDir(targetDir)
+                        } else {
+                            Toast.makeText(context, "Falha ao extrair arquivo", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            ) {
+                Text(if (extracting) "Extraindo..." else "Extrair Aqui")
+            }
+        }
+        if (loading) {
+            Text("Lendo arquivo compactado...", color = Color(0xFFA0A3A6), fontSize = 13.sp, modifier = Modifier.padding(16.dp))
+        } else {
+            LazyColumn(Modifier.weight(1f)) {
+                items(entries, key = { it.first }) { (name, size) ->
+                    val isDir = name.endsWith("/")
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(painterResource(if (isDir) R.drawable.format_folder else R.drawable.format_document), null, Modifier.size(32.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(name.trimEnd('/'), fontSize = 13.5.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (!isDir) Text(StorageManager.formatFileSize(size), fontSize = 11.sp, color = Color(0xFFA0A3A6))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** ES Audio Player: reprodutor de música embutido. */
+@Composable
+fun AudioPlayerScreen(file: File, onBack: () -> Unit) {
+    var playing by remember { mutableStateOf(false) }
+    var durationMs by remember { mutableIntStateOf(0) }
+    var posMs by remember { mutableIntStateOf(0) }
+    val player = remember { android.media.MediaPlayer() }
+
+    BackHandler {
+        runCatching { player.stop(); player.release() }
+        onBack()
+    }
+    DisposableEffect(file.path) {
+        runCatching {
+            player.setDataSource(file.path)
+            player.prepare()
+            durationMs = player.duration
+            player.start()
+            playing = true
+            player.setOnCompletionListener { playing = false }
+        }
+        onDispose {
+            runCatching { player.release() }
+        }
+    }
+    LaunchedEffect(playing) {
+        while (playing) {
+            posMs = runCatching { player.currentPosition }.getOrDefault(0)
+            delay(300)
+        }
+    }
+
+    fun fmt(ms: Int): String {
+        val s = (ms / 1000).coerceAtLeast(0)
+        return String.format("%02d:%02d", s / 60, s % 60)
+    }
+
+    EsSubScreen("ES Media Player", onBack) {
+        Column(
+            Modifier.fillMaxSize().padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Card(
+                Modifier.fillMaxWidth(),
+                cornerRadius = 16.dp,
+                insideMargin = PaddingValues(24.dp),
+                colors = CardDefaults.defaultColors(color = EsCardColor, contentColor = Color.White)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                    Image(painterResource(R.drawable.es_cat_music), null, Modifier.size(72.dp))
+                    Spacer(Modifier.height(16.dp))
+                    Text(file.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(8.dp))
+                    Text("${fmt(posMs)} / ${fmt(durationMs)}", fontSize = 13.sp, color = Color(0xFF3FE0F0))
+                    Spacer(Modifier.height(20.dp))
+                    Button(
+                        onClick = {
+                            runCatching {
+                                if (player.isPlaying) {
+                                    player.pause()
+                                    playing = false
+                                } else {
+                                    player.start()
+                                    playing = true
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (playing) "Pausar" else "Reproduzir")
+                    }
+                }
             }
         }
     }

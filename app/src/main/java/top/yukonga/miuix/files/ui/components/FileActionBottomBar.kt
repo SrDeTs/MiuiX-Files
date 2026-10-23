@@ -1,22 +1,30 @@
 package top.yukonga.miuix.files.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import top.yukonga.miuix.files.R
 import top.yukonga.miuix.files.core.storage.FileOperations
 import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.SinkFeedback
+import top.yukonga.miuix.kmp.utils.pressable
 
 @Composable
 fun FileActionBottomBar(
@@ -25,27 +33,36 @@ fun FileActionBottomBar(
     onCut: () -> Unit,
     onDelete: () -> Unit,
     onRename: () -> Unit,
-    onZip: () -> Unit,
+    onMore: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(MiuixTheme.colorScheme.surface)
-            .padding(horizontal = 8.dp, vertical = 8.dp)
+            .background(Color(0xFF292C2E))
+            .navigationBarsPadding()
     ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(Color(0xFF383C42))
+        )
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(54.dp)
+                .padding(horizontal = 4.dp),
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ActionItem(emoji = "📋", label = "Copiar", onClick = onCopy)
-            ActionItem(emoji = "✂️", label = "Cortar", onClick = onCut)
-            ActionItem(emoji = "🗑️", label = "Excluir", onClick = onDelete)
+            ActionItem(iconRes = R.drawable.toolbar_copy, label = "Copiar", onClick = onCopy, modifier = Modifier.weight(1f))
+            ActionItem(iconRes = R.drawable.toolbar_cut, label = "Cortar", onClick = onCut, modifier = Modifier.weight(1f))
+            ActionItem(iconRes = R.drawable.toolbar_delete, label = "Excluir", onClick = onDelete, modifier = Modifier.weight(1f))
             if (selectedCount == 1) {
-                ActionItem(emoji = "✏️", label = "Renomear", onClick = onRename)
+                ActionItem(iconRes = R.drawable.toolbar_rename, label = "Renomear", onClick = onRename, modifier = Modifier.weight(1f))
             }
-            ActionItem(emoji = "🗜️", label = "Zip", onClick = onZip)
+            ActionItem(iconRes = R.drawable.toolbar_more, label = "Mais", onClick = onMore, modifier = Modifier.weight(1f))
         }
     }
 }
@@ -63,7 +80,7 @@ fun ClipboardFloatingBar(
             .fillMaxWidth()
             .padding(16.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(MiuixTheme.colorScheme.surface)
+            .background(Color(0xFF31353D))
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Row(
@@ -76,12 +93,12 @@ fun ClipboardFloatingBar(
                     text = "$modeText ${clipboard.files.size} itens",
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
-                    color = MiuixTheme.colorScheme.onSurface
+                    color = Color.White
                 )
                 Text(
                     text = "Navegue até a pasta de destino",
                     fontSize = 12.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    color = Color(0xFFB0B3B8)
                 )
             }
 
@@ -102,24 +119,40 @@ fun ClipboardFloatingBar(
 
 @Composable
 private fun ActionItem(
-    emoji: String,
+    iconRes: Int,
     label: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 6.dp)
+        verticalArrangement = Arrangement.Center,
+        modifier = modifier
+            .fillMaxHeight()
+            .pressable(
+                interactionSource = interactionSource,
+                indication = SinkFeedback()
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .padding(vertical = 4.dp)
     ) {
-        Text(text = emoji, fontSize = 20.sp)
+        Image(
+            painter = painterResource(iconRes),
+            contentDescription = label,
+            modifier = Modifier.size(23.dp),
+            colorFilter = ColorFilter.tint(Color(0xFFE0E0E0))
+        )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = label,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
-            color = MiuixTheme.colorScheme.onSurface
+            fontSize = 10.5.sp,
+            fontWeight = FontWeight.Normal,
+            color = Color(0xFFB0B3B8)
         )
     }
 }

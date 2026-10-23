@@ -65,6 +65,13 @@ fun CategoryScreen(
             else -> filtered.sortedByDescending { it.lastModified }
         }
     }
+    var selectedPaths by remember(category) { mutableStateOf<Set<String>>(emptySet()) }
+    val isSelectionMode = selectedPaths.isNotEmpty()
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    androidx.activity.compose.BackHandler(enabled = isSelectionMode) {
+        selectedPaths = emptySet()
+    }
 
     LaunchedEffect(category) {
         if (cached == null) isLoading = true
@@ -270,12 +277,21 @@ fun CategoryScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(displayFiles, key = { it.path }) { item ->
+                            val isSelected = selectedPaths.contains(item.path)
                             FileGridItem(
                                 item = item,
-                                isSelected = false,
-                                isSelectionMode = false,
-                                onClick = { onOpenFile(item.file) },
-                                onLongClick = {}
+                                isSelected = isSelected,
+                                isSelectionMode = isSelectionMode,
+                                onClick = {
+                                    if (isSelectionMode) {
+                                        selectedPaths = if (isSelected) selectedPaths - item.path else selectedPaths + item.path
+                                    } else {
+                                        onOpenFile(item.file)
+                                    }
+                                },
+                                onLongClick = {
+                                    if (!isSelectionMode) selectedPaths = setOf(item.path)
+                                }
                             )
                         }
                     }
@@ -285,12 +301,21 @@ fun CategoryScreen(
                         contentPadding = PaddingValues(bottom = 12.dp)
                     ) {
                         items(displayFiles, key = { it.path }) { item ->
+                            val isSelected = selectedPaths.contains(item.path)
                             FileListItem(
                                 item = item,
-                                isSelected = false,
-                                isSelectionMode = false,
-                                onClick = { onOpenFile(item.file) },
-                                onLongClick = {}
+                                isSelected = isSelected,
+                                isSelectionMode = isSelectionMode,
+                                onClick = {
+                                    if (isSelectionMode) {
+                                        selectedPaths = if (isSelected) selectedPaths - item.path else selectedPaths + item.path
+                                    } else {
+                                        onOpenFile(item.file)
+                                    }
+                                },
+                                onLongClick = {
+                                    if (!isSelectionMode) selectedPaths = setOf(item.path)
+                                }
                             )
                         }
                     }
@@ -298,49 +323,113 @@ fun CategoryScreen(
             }
 
             // Bottom Bar
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFF292C2E))
-                    .navigationBarsPadding()
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(Color(0xFF383C42))
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(54.dp)
-                        .padding(horizontal = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceAround,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    CategoryBottomItem("Novo", R.drawable.toolbar_new, modifier = Modifier.weight(1f)) {
-                        showMoreMenu = true
-                    }
-                    CategoryBottomItem("Procurar", R.drawable.toolbar_search, modifier = Modifier.weight(1f)) {
-                        showSearchBar = !showSearchBar
-                        if (!showSearchBar) searchQuery = ""
-                    }
-                    CategoryBottomItem("Atualizar", R.drawable.toolbar_refresh, modifier = Modifier.weight(1f)) {
-                        scope.launch {
-                            isLoading = true
-                            files = StorageManager.getCategoryFiles(category, context = context, forceRefresh = true)
-                            isLoading = false
+            if (isSelectionMode) {
+                top.yukonga.miuix.files.ui.components.FileActionBottomBar(
+                    selectedCount = selectedPaths.size,
+                    onCopy = {
+                        val sel = files.filter { selectedPaths.contains(it.path) }.map { it.file }
+                        top.yukonga.miuix.files.core.storage.FileOperations.currentClipboard =
+                            top.yukonga.miuix.files.core.storage.FileOperations.ClipboardItem(sel, top.yukonga.miuix.files.core.storage.FileOperations.ClipboardMode.COPY)
+                        selectedPaths = emptySet()
+                    },
+                    onCut = {
+                        val sel = files.filter { selectedPaths.contains(it.path) }.map { it.file }
+                        top.yukonga.miuix.files.core.storage.FileOperations.currentClipboard =
+                            top.yukonga.miuix.files.core.storage.FileOperations.ClipboardItem(sel, top.yukonga.miuix.files.core.storage.FileOperations.ClipboardMode.CUT)
+                        selectedPaths = emptySet()
+                    },
+                    onDelete = { showDeleteDialog = true },
+                    onRename = {},
+                    onMore = {
+                        val first = files.firstOrNull { selectedPaths.contains(it.path) }?.file
+                        if (first != null) {
+                            runCatching {
+                                val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", first)
+                                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "*/*"
+                                    putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(android.content.Intent.createChooser(intent, "Compartilhar ${first.name}"))
+                            }
                         }
+                        selectedPaths = emptySet()
                     }
-                    CategoryBottomItem("Visualizar", R.drawable.toolbar_view, modifier = Modifier.weight(1f)) {
-                        isGridView = !isGridView
-                    }
-                    CategoryBottomItem("Mais", R.drawable.toolbar_more, modifier = Modifier.weight(1f)) {
-                        showMoreMenu = true
+                )
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF292C2E))
+                        .navigationBarsPadding()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(Color(0xFF383C42))
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(54.dp)
+                            .padding(horizontal = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceAround,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CategoryBottomItem("Novo", R.drawable.toolbar_new, modifier = Modifier.weight(1f)) {
+                            showMoreMenu = true
+                        }
+                        CategoryBottomItem("Procurar", R.drawable.toolbar_search, modifier = Modifier.weight(1f)) {
+                            showSearchBar = !showSearchBar
+                            if (!showSearchBar) searchQuery = ""
+                        }
+                        CategoryBottomItem("Atualizar", R.drawable.toolbar_refresh, modifier = Modifier.weight(1f)) {
+                            scope.launch {
+                                isLoading = true
+                                files = StorageManager.getCategoryFiles(category, context = context, forceRefresh = true)
+                                isLoading = false
+                            }
+                        }
+                        CategoryBottomItem("Visualizar", R.drawable.toolbar_view, modifier = Modifier.weight(1f)) {
+                            isGridView = !isGridView
+                        }
+                        CategoryBottomItem("Mais", R.drawable.toolbar_more, modifier = Modifier.weight(1f)) {
+                            showMoreMenu = true
+                        }
                     }
                 }
             }
         }
+    }
+
+    if (showDeleteDialog) {
+        OverlayDialog(
+            show = showDeleteDialog,
+            onDismissRequest = { showDeleteDialog = false },
+            title = "Excluir (${selectedPaths.size})",
+            content = {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Deseja excluir ${selectedPaths.size} arquivo(s) selecionado(s)?", color = Color.White, fontSize = 13.5.sp)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(text = "Cancelar", onClick = { showDeleteDialog = false })
+                        Spacer(Modifier.width(8.dp))
+                        TextButton(
+                            text = "Excluir",
+                            onClick = {
+                                val toDel = files.filter { selectedPaths.contains(it.path) }.map { it.file }
+                                showDeleteDialog = false
+                                scope.launch {
+                                    top.yukonga.miuix.files.core.storage.FileOperations.deleteFiles(toDel)
+                                    selectedPaths = emptySet()
+                                    files = StorageManager.getCategoryFiles(category, context = context, forceRefresh = true)
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        )
     }
 
     if (showMoreMenu) {

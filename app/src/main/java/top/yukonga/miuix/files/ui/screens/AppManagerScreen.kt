@@ -56,33 +56,36 @@ fun AppManagerScreen(
         }
     }
 
-    Column(modifier = modifier.fillMaxSize()) {
-        TopAppBar(
-            title = "Gerenciador de Apps",
-            navigationIcon = {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(onClick = onNavigateBack)
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
-                ) {
-                    Text(text = "←", fontSize = 20.sp)
-                }
-            },
-            actions = {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { filterUserOnly = !filterUserOnly }
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text = if (filterUserOnly) "Usuário" else "Todos",
-                        fontSize = 13.sp,
-                        color = MiuixTheme.colorScheme.primary
-                    )
-                }
+    Column(modifier = modifier.fillMaxSize().background(top.yukonga.miuix.files.ui.components.EsBgColor)) {
+        Row(
+            Modifier.fillMaxWidth().background(top.yukonga.miuix.files.ui.components.EsTopColor).statusBarsPadding().padding(horizontal = 8.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onNavigateBack), contentAlignment = Alignment.Center) {
+                Image(androidx.compose.ui.res.painterResource(top.yukonga.miuix.files.R.drawable.toolbar_return), null, Modifier.size(24.dp), colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(androidx.compose.ui.graphics.Color.White))
             }
+            Spacer(Modifier.width(8.dp))
+            Text("Gerenciador de APPs (${filteredApps.size})", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = androidx.compose.ui.graphics.Color.White, modifier = Modifier.weight(1f))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(androidx.compose.ui.graphics.Color(0xFF464A51))
+                    .clickable { filterUserOnly = !filterUserOnly }
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = if (filterUserOnly) "Usuário" else "Todos",
+                    fontSize = 12.sp,
+                    color = androidx.compose.ui.graphics.Color.White
+                )
+            }
+        }
+
+        TextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            label = "Buscar aplicativo instalado...",
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)
         )
 
         if (isLoading) {
