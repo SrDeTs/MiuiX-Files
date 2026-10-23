@@ -1,9 +1,11 @@
 package top.yukonga.miuix.files.ui.screens
 
-import android.content.Context
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -31,8 +33,55 @@ import top.yukonga.miuix.files.ui.components.*
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import java.io.File
+
+/** Grupo de recentes no estilo ES: "2 hora atrás  2 imagem de .Statuses". */
+data class RecentGroup(val time: String, val label: String, val folder: File, val items: List<FileItem>, val media: Boolean)
+
+fun relativeTime(ts: Long): String {
+    val m = (System.currentTimeMillis() - ts) / 60000
+    return when {
+        m < 1 -> "agora"
+        m < 60 -> "$m min atrás"
+        m < 1440 -> "${m / 60} hora atrás"
+        else -> "${m / 1440} dia atrás"
+    }
+}
+
+fun kindLabel(items: List<FileItem>): String {
+    val e = items.first().extension.lowercase()
+    val n = items.size
+    return when {
+        e in setOf("jpg", "jpeg", "png", "webp", "gif", "heic") -> "$n imagens"
+        e in setOf("mp4", "mkv", "avi", "mov", "3gp", "webm") -> "$n vídeos"
+        e in setOf("mp3", "flac", "wav", "m4a", "ogg", "opus") -> "$n músicas"
+        e == "apk" -> "$n APKs"
+        else -> "$n arquivos"
+    }
+}
+
+fun groupRecents(files: List<FileItem>): List<RecentGroup> =
+    files.sortedByDescending { it.lastModified }
+        .groupBy { (it.file.parentFile?.path ?: "") + "|" + relativeTime(it.lastModified) }
+        .values.map { g ->
+            val parent = g.first().file.parentFile ?: File("/")
+            RecentGroup(relativeTime(g.first().lastModified), "${kindLabel(g)} de ${parent.name}", parent, g, g.all { isMediaFile(it.file) })
+        }
+
+fun iconFor(item: FileItem): Int = when (item.extension.lowercase()) {
+    "apk" -> R.drawable.format_apk
+    "jpg", "jpeg", "png", "webp", "gif" -> R.drawable.format_picture
+    "mp4", "mkv", "avi", "mov" -> R.drawable.format_video
+    "mp3", "flac", "wav", "m4a" -> R.drawable.format_music
+    "zip", "rar", "7z" -> R.drawable.format_zip
+    "pdf" -> R.drawable.format_pdf
+    "txt", "log", "json", "xml", "md" -> R.drawable.format_text
+    else -> if (item.isDirectory) R.drawable.format_folder else R.drawable.format_document
+}
 
 @Composable
 fun HomeScreen(
@@ -42,134 +91,63 @@ fun HomeScreen(
     onNavigateAppManager: () -> Unit,
     onNavigateSettings: () -> Unit,
     onOpenFile: (File) -> Unit,
+    onSearch: () -> Unit = {},
+    onHistory: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-
     var volumes by remember { mutableStateOf<List<StorageVolumeInfo>>(emptyList()) }
     var recentFiles by remember { mutableStateOf<List<FileItem>>(emptyList()) }
     var showRecent by remember { mutableStateOf(true) }
+    var drawerOpen by remember { mutableStateOf(false) }
+    var showNew by remember { mutableStateOf(false) }
+    var showWindows by remember { mutableStateOf(false) }
+    var newName by remember { mutableStateOf("") }
+    val groups = remember(recentFiles) { groupRecents(recentFiles) }
 
     fun reload() {
         volumes = StorageManager.getStorageVolumes(context)
-        scope.launch {
-            recentFiles = StorageManager.getRecentFiles()
-        }
+        scope.launch { recentFiles = StorageManager.getRecentFiles() }
     }
+    LaunchedEffect(Unit) { reload() }
+    BackHandler(enabled = drawerOpen) { drawerOpen = false }
 
-    LaunchedEffect(Unit) {
-        volumes = StorageManager.getStorageVolumes(context)
-        recentFiles = StorageManager.getRecentFiles()
-    }
+    Box(modifier.fillMaxSize().background(EsBgColor)) {
+        Column(Modifier.fillMaxSize()) {
+            EsTopHeader(tabTitle = "Página Inicial", onMenuClick = { drawerOpen = true }, onTabCloseClick = {})
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color(0xFF292C2E))
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // 1:1 ES Top Header
-            EsTopHeader(
-                tabTitle = "Página Inicial",
-                onMenuClick = onNavigateSettings,
-                onTabCloseClick = {}
-            )
-
-            // Main Scrollable Area
             LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 12.dp),
+                Modifier.weight(1f).fillMaxWidth(),
+                contentPadding = PaddingValues(start = 10.dp, end = 10.dp, top = 14.dp, bottom = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Top 5 Circular Categories
+                item { EsTopCategoryRow(onCategoryClick = onNavigateCategory) }
+                item { Spacer(Modifier.height(6.dp)) }
                 item {
-                    EsTopCategoryRow(onCategoryClick = onNavigateCategory)
-                }
-
-                // Storage Cards (side-by-side)
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        if (volumes.isNotEmpty()) {
-                            EsStorageCard(
-                                volume = volumes[0],
-                                onClick = { onNavigateDir(volumes[0].path) },
-                                modifier = Modifier.weight(1f),
-                                gaugeColor = Color(0xFF00B0FF)
-                            )
-                        }
-
-                        if (volumes.size > 1) {
-                            EsStorageCard(
-                                volume = volumes[1],
-                                onClick = { onNavigateDir(volumes[1].path) },
-                                modifier = Modifier.weight(1f),
-                                gaugeColor = Color(0xFF00E5FF)
-                            )
-                        } else if (volumes.isNotEmpty()) {
-                            // Secondary simulated card matching ES presentation
-                            val secondaryVol = StorageVolumeInfo(
-                                title = "Armazenament...",
-                                path = volumes[0].path,
-                                totalBytes = 29L * 1024 * 1024 * 1024 + 710L * 1024 * 1024,
-                                freeBytes = 15L * 1024 * 1024 * 1024 + 810L * 1024 * 1024
-                            )
-                            EsStorageCard(
-                                volume = secondaryVol,
-                                onClick = { onNavigateDir(volumes[0].path) },
-                                modifier = Modifier.weight(1f),
-                                gaugeColor = Color(0xFF00E5FF)
-                            )
-                        }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        volumes.getOrNull(0)?.let { v -> EsStorageCard(v, { onNavigateDir(v.path) }, Modifier.weight(1f), Color(0xFF2F7DF6)) }
+                        volumes.getOrNull(1)?.let { v -> EsStorageCard(v, { onNavigateDir(v.path) }, Modifier.weight(1f), Color(0xFF3FE0F0)) }
                     }
                 }
-
-                // Analis. de espaço Card
                 item {
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        cornerRadius = 12.dp,
-                        insideMargin = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
-                        colors = CardDefaults.defaultColors(
-                            color = Color(0xFF23262B),
-                            contentColor = Color.White
-                        ),
-                        pressFeedbackType = PressFeedbackType.Sink,
-                        onClick = onNavigateCleaner
+                        Modifier.fillMaxWidth(), cornerRadius = 10.dp,
+                        insideMargin = PaddingValues(horizontal = 12.dp, vertical = 16.dp),
+                        colors = CardDefaults.defaultColors(color = EsCardColor, contentColor = Color.White),
+                        pressFeedbackType = PressFeedbackType.Sink, onClick = onNavigateCleaner
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Image(
-                                painter = painterResource(R.drawable.es_icon_analyse_pie),
-                                contentDescription = null,
-                                modifier = Modifier.size(36.dp)
-                            )
-
-                            Spacer(modifier = Modifier.width(14.dp))
-
+                            Image(painterResource(R.drawable.es_icon_analyse_pie), null, Modifier.size(34.dp))
+                            Spacer(Modifier.width(12.dp))
                             Column {
-                                Text(
-                                    text = "Analis. de espaço",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.5.sp,
-                                    color = Color.White
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = "mais arquivos para limpar",
-                                    fontSize = 11.sp,
-                                    color = Color(0xFF9E9E9E)
-                                )
+                                Text("Analis. de espaço", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = Color.White)
+                                Spacer(Modifier.height(4.dp))
+                                Text("mais arquivos para limpar", fontSize = 10.5.sp, color = Color(0xFFA0A3A6))
                             }
                         }
                     }
                 }
-
-                // 10 Tools Grid
                 item {
                     EsToolGrid(
                         onCleanerClick = onNavigateCleaner,
@@ -178,176 +156,199 @@ fun HomeScreen(
                         onDownloadClick = { onNavigateCategory(FileCategory.DOWNLOADS) }
                     )
                 }
-
-                // Arquivado Recentemente Header
+                // Arquivado Recentemente: tudo dentro de um único card, como no ES
                 item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 2.dp, bottom = 2.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Card(
+                        Modifier.fillMaxWidth(), cornerRadius = 10.dp,
+                        insideMargin = PaddingValues(start = 14.dp, end = 14.dp, top = 16.dp, bottom = 6.dp),
+                        colors = CardDefaults.defaultColors(color = EsCardColor, contentColor = Color.White)
                     ) {
-                        Text(
-                            text = "Arquivado Recentemente:",
-                            fontSize = 13.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-
-                        Text(
-                            text = if (showRecent) "👁" else "🙈",
-                            fontSize = 15.sp,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .clickable { showRecent = !showRecent }
-                                .padding(4.dp)
-                        )
-                    }
-                }
-
-                // Recent Items
-                if (showRecent) {
-                    if (recentFiles.isNotEmpty()) {
-                        item {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                cornerRadius = 12.dp,
-                                insideMargin = PaddingValues(12.dp),
-                                colors = CardDefaults.defaultColors(
-                                    color = Color(0xFF23262B),
-                                    contentColor = Color.White
-                                )
-                            ) {
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                text = "Recente",
-                                                fontSize = 11.5.sp,
-                                                color = Color(0xFF00B0FF),
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                text = "•  ${recentFiles.size} arquivos",
-                                                fontSize = 11.5.sp,
-                                                color = Color(0xFF9E9E9E)
-                                            )
-                                        }
-                                        Text(
-                                            text = ">",
-                                            fontSize = 13.sp,
-                                            color = Color(0xFF757575)
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.height(2.dp))
-
-                                    for (item in recentFiles.take(4)) {
-                                        RecentFileRow(item = item, onClick = { onOpenFile(item.file) })
-                                    }
-                                }
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text("Arquivado Recentemente:", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE6E6E6), modifier = Modifier.weight(1f))
+                            Image(
+                                painterResource(if (showRecent) R.drawable.toolbar_show else R.drawable.toolbar_hide), null,
+                                Modifier.size(22.dp).clip(RoundedCornerShape(6.dp)).clickable { showRecent = !showRecent },
+                                colorFilter = ColorFilter.tint(Color(0xFF8A8D91))
+                            )
+                        }
+                        if (showRecent) {
+                            if (groups.isEmpty()) {
+                                Text("Nenhum arquivo recente", fontSize = 12.sp, color = Color(0xFF8A8D91), modifier = Modifier.padding(vertical = 16.dp))
+                            }
+                            groups.take(6).forEachIndexed { i, g ->
+                                if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF3A3D40)))
+                                RecentGroupBlock(g, onOpenFile, onNavigateDir)
                             }
                         }
                     }
                 }
-
-                // Favoritos Card
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        cornerRadius = 12.dp,
-                        insideMargin = PaddingValues(14.dp),
-                        colors = CardDefaults.defaultColors(
-                            color = Color(0xFF23262B),
-                            contentColor = Color.White
-                        ),
-                        pressFeedbackType = PressFeedbackType.Sink,
-                        onClick = { }
-                    ) {
-                        Column {
-                            Text(
-                                text = "Favoritos",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.5.sp,
-                                color = Color.White
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "Ver tudo >",
-                                fontSize = 11.5.sp,
-                                color = Color(0xFF9E9E9E),
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                }
             }
-
-            // Fixed Bottom Bar (Novo, Procurar, Atualizar, Janelas, Histórico)
             EsBottomBar(
-                onNewClick = { },
-                onSearchClick = { },
+                onNewClick = { newName = ""; showNew = true },
+                onSearchClick = onSearch,
                 onRefreshClick = { reload() },
-                onWindowsClick = { },
-                onHistoryClick = { }
+                onWindowsClick = { showWindows = true },
+                onHistoryClick = onHistory
             )
+        }
+
+        // Gaveta lateral (☰)
+        AnimatedVisibility(drawerOpen, enter = fadeIn(), exit = fadeOut()) {
+            Box(Modifier.fillMaxSize().background(Color(0x99000000)).clickable(remember { MutableInteractionSource() }, null) { drawerOpen = false })
+        }
+        AnimatedVisibility(drawerOpen, enter = slideInHorizontally { -it }, exit = slideOutHorizontally { -it }) {
+            EsDrawer(
+                onClose = { drawerOpen = false },
+                onHome = { drawerOpen = false },
+                onLocal = { drawerOpen = false; volumes.firstOrNull()?.let { onNavigateDir(it.path) } },
+                onRoot = { drawerOpen = false; onNavigateDir(File("/")) },
+                onCategory = { drawerOpen = false; onNavigateCategory(it) },
+                onCleaner = { drawerOpen = false; onNavigateCleaner() },
+                onApps = { drawerOpen = false; onNavigateAppManager() },
+                onSettings = { drawerOpen = false; onNavigateSettings() }
+            )
+        }
+    }
+
+    if (showNew) {
+        OverlayDialog(show = showNew, title = "Nova pasta", onDismissRequest = { showNew = false }) {
+            TextField(value = newName, onValueChange = { newName = it }, label = "Nome", modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(16.dp))
+            Row(Modifier.fillMaxWidth()) {
+                TextButton(text = "Cancelar", onClick = { showNew = false }, modifier = Modifier.weight(1f))
+                Spacer(Modifier.width(12.dp))
+                TextButton(text = "Criar", onClick = {
+                    val root = volumes.firstOrNull()?.path
+                    if (root != null && newName.isNotBlank()) {
+                        val d = File(root, newName.trim())
+                        if (d.exists() || d.mkdirs()) onNavigateDir(d)
+                    }
+                    showNew = false
+                }, modifier = Modifier.weight(1f))
+            }
+        }
+    }
+    if (showWindows) {
+        OverlayDialog(show = showWindows, title = "Janelas", onDismissRequest = { showWindows = false }) {
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color(0x22FFFFFF)).padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Image(painterResource(R.drawable.icon_home_tab_home), null, Modifier.size(18.dp))
+                Spacer(Modifier.width(10.dp))
+                Text("Página Inicial", fontSize = 14.sp)
+            }
+            Spacer(Modifier.height(12.dp))
+            TextButton(text = "Fechar", onClick = { showWindows = false }, modifier = Modifier.fillMaxWidth())
         }
     }
 }
 
 @Composable
-fun RecentFileRow(
-    item: FileItem,
-    onClick: () -> Unit
-) {
-    val iconRes = when (item.extension) {
-        "apk" -> R.drawable.format_apk
-        "jpg", "jpeg", "png", "webp", "gif" -> R.drawable.format_picture
-        "mp4", "mkv", "avi", "mov" -> R.drawable.format_video
-        "mp3", "flac", "wav" -> R.drawable.format_music
-        "zip", "rar", "7z" -> R.drawable.format_zip
-        "pdf" -> R.drawable.format_pdf
-        else -> R.drawable.format_document
-    }
-
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 4.dp)
-    ) {
-        Image(
-            painter = painterResource(iconRes),
-            contentDescription = null,
-            modifier = Modifier.size(36.dp)
-        )
-
-        Spacer(modifier = Modifier.width(10.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = item.name,
-                fontWeight = FontWeight.Medium,
-                fontSize = 12.5.sp,
-                color = Color.White,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "${StorageManager.formatFileSize(item.size)} • ${StorageManager.formatDate(item.lastModified)}",
-                fontSize = 10.5.sp,
-                color = Color(0xFF9E9E9E)
-            )
+private fun RecentGroupBlock(g: RecentGroup, onOpenFile: (File) -> Unit, onNavigateDir: (File) -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+        Row(
+            Modifier.fillMaxWidth().clickable { onNavigateDir(g.folder) },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(g.time, fontSize = 12.sp, color = Color(0xFF2EC7E0))
+            Spacer(Modifier.width(12.dp))
+            Text(g.label, fontSize = 12.sp, color = Color(0xFFA0A3A6), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text("›", fontSize = 18.sp, color = Color(0xFF8A8D91))
         }
+        Spacer(Modifier.height(10.dp))
+        if (g.media) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                g.items.take(4).forEach { f ->
+                    FileThumbnail(
+                        f.file, iconFor(f),
+                        Modifier.size(width = 72.dp, height = 72.dp).clip(RoundedCornerShape(4.dp)).clickable { onOpenFile(f.file) }
+                    )
+                }
+            }
+        } else {
+            g.items.take(3).forEach { f ->
+                Row(
+                    Modifier.fillMaxWidth().clickable { onOpenFile(f.file) }.padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Image(painterResource(iconFor(f)), null, Modifier.size(36.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(f.name, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(StorageManager.formatFileSize(f.size), fontSize = 10.5.sp, color = Color(0xFFA0A3A6))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EsDrawer(
+    onClose: () -> Unit, onHome: () -> Unit, onLocal: () -> Unit, onRoot: () -> Unit,
+    onCategory: (FileCategory) -> Unit, onCleaner: () -> Unit, onApps: () -> Unit, onSettings: () -> Unit
+) {
+    Column(Modifier.fillMaxHeight().fillMaxWidth(0.8f).background(EsBgColor)) {
+        Row(
+            Modifier.fillMaxWidth().background(EsTopColor).statusBarsPadding().padding(horizontal = 16.dp, vertical = 24.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(Modifier.size(42.dp).clip(RoundedCornerShape(21.dp)).background(Color(0xFFEDEDED)), contentAlignment = Alignment.Center) {
+                Image(painterResource(R.drawable.toolbar_user), null, Modifier.size(24.dp), colorFilter = ColorFilter.tint(Color(0xFF31353D)))
+            }
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text("MiuiX Files", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("Gerenciador de arquivos", fontSize = 11.sp, color = Color(0xFFB0B3B8))
+            }
+        }
+        LazyColumn(Modifier.weight(1f)) {
+            item { DrawerSection("Favoritos") }
+            item { DrawerItem(R.drawable.icon_home_tab_home, "Página Inicial", onHome) }
+            item { DrawerItem(R.drawable.toolbar_local, "Armazenamento interno", onLocal) }
+            item { DrawerItem(R.drawable.toolbar_root, "Dispositivo ( / )", onRoot) }
+            item { DrawerSection("Biblioteca") }
+            items(listOf(
+                Triple(R.drawable.toolbar_image, "Fotografias", FileCategory.IMAGES),
+                Triple(R.drawable.toolbar_music, "Música", FileCategory.AUDIO),
+                Triple(R.drawable.toolbar_video, "Filmes", FileCategory.VIDEOS),
+                Triple(R.drawable.toolbar_document, "Livros", FileCategory.DOCUMENTS),
+                Triple(R.drawable.toolbar_app, "APP", FileCategory.APPS),
+                Triple(R.drawable.toolbar_download, "Download", FileCategory.DOWNLOADS),
+                Triple(R.drawable.toolbar_delete, "Reciclagem", FileCategory.RECYCLE_BIN)
+            )) { (ic, t, c) -> DrawerItem(ic, t) { onCategory(c) } }
+            item { DrawerSection("Ferramentas") }
+            item { DrawerItem(R.drawable.toolbar_clean, "Cleaner", onCleaner) }
+            item { DrawerItem(R.drawable.toolbar_analyer, "Analis. de espaço", onCleaner) }
+            item { DrawerItem(R.drawable.toolbar_app, "Gerenciador de APPs", onApps) }
+        }
+        Row(Modifier.fillMaxWidth().navigationBarsPadding().height(60.dp), verticalAlignment = Alignment.CenterVertically) {
+            DrawerBottom(R.drawable.toolbar_message, "Mensagem", Modifier.weight(1f), onClose)
+            DrawerBottom(R.drawable.toolbar_theme, "Tema", Modifier.weight(1f), onSettings)
+            DrawerBottom(R.drawable.toolbar_setting, "Configurações", Modifier.weight(1f), onSettings)
+        }
+    }
+}
+
+@Composable
+private fun DrawerSection(t: String) =
+    Text(t, fontSize = 12.sp, color = Color(0xFF8A8D91), modifier = Modifier.padding(start = 18.dp, top = 16.dp, bottom = 6.dp))
+
+@Composable
+private fun DrawerItem(icon: Int, title: String, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 18.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Image(painterResource(icon), null, Modifier.size(22.dp), colorFilter = ColorFilter.tint(Color(0xFFD0D2D6)))
+        Spacer(Modifier.width(18.dp))
+        Text(title, fontSize = 14.sp, color = Color(0xFFE6E6E6))
+    }
+}
+
+@Composable
+private fun DrawerBottom(icon: Int, title: String, modifier: Modifier, onClick: () -> Unit) {
+    Column(modifier.clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
+        Image(painterResource(icon), null, Modifier.size(20.dp), colorFilter = ColorFilter.tint(Color(0xFF8A8D91)))
+        Spacer(Modifier.height(4.dp))
+        Text(title, fontSize = 12.sp, color = Color(0xFFE6E6E6), textAlign = TextAlign.Center)
     }
 }

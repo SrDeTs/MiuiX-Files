@@ -16,61 +16,34 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import java.util.Locale
 
+val EsCardColor = Color(0xFF2D3032)
+val EsBgColor = Color(0xFF292C2E)
+val EsTopColor = Color(0xFF31353D)
+
 @Composable
 fun EsStorageCard(
     volume: StorageVolumeInfo,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    gaugeColor: Color = Color(0xFF00B0FF)
+    gaugeColor: Color = Color(0xFF2F7DF6)
 ) {
-    val percentage = (volume.progress * 100).toInt()
-    val usedGb = volume.usedBytes.toDouble() / (1024.0 * 1024.0 * 1024.0)
-    val totalGb = volume.totalBytes.toDouble() / (1024.0 * 1024.0 * 1024.0)
-    val formattedSubtitle = String.format(Locale.getDefault(), "%.2f GB / %.2f GB", usedGb, totalGb)
-
+    val gb = 1024.0 * 1024.0 * 1024.0
+    val sub = String.format(Locale("pt", "BR"), "%.2f GB / %.2f GB", volume.usedBytes / gb, volume.totalBytes / gb)
     Card(
         modifier = modifier,
-        cornerRadius = 12.dp,
-        insideMargin = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
-        colors = CardDefaults.defaultColors(
-            color = Color(0xFF23262B),
-            contentColor = Color.White
-        ),
+        cornerRadius = 10.dp,
+        insideMargin = PaddingValues(start = 10.dp, end = 8.dp, top = 15.dp, bottom = 15.dp),
+        colors = CardDefaults.defaultColors(color = EsCardColor, contentColor = Color.White),
         pressFeedbackType = PressFeedbackType.Sink,
         onClick = onClick
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            CircularStorageGauge(
-                progress = volume.progress,
-                percentage = percentage,
-                progressColor = gaugeColor,
-                size = 44.dp,
-                strokeWidth = 3.8.dp,
-                trackColor = Color(0xFF383C45)
-            )
-
-            Spacer(modifier = Modifier.width(10.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Armazenament...",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
-                    color = Color.White,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(3.dp))
-                Text(
-                    text = formattedSubtitle,
-                    fontSize = 10.5.sp,
-                    color = Color(0xFF9E9EA0),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CircularStorageGauge(volume.progress, (volume.progress * 100).toInt(), progressColor = gaugeColor)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(volume.title, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(4.dp))
+                Text(sub, fontSize = 10.sp, color = Color(0xFFA0A3A6), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }

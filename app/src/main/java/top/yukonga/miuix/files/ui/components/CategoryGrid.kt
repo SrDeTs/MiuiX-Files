@@ -73,16 +73,16 @@ fun EsTopCategoryRow(
                 Image(
                     painter = painterResource(item.iconRes),
                     contentDescription = item.title,
-                    modifier = Modifier.size(52.dp)
+                    modifier = Modifier.size(42.dp)
                 )
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
                     text = item.title,
-                    fontSize = 11.5.sp,
-                    color = Color.White,
-                    fontWeight = FontWeight.Medium,
+                    fontSize = 12.5.sp,
+                    color = Color(0xFFE6E6E6),
+                    fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     textAlign = TextAlign.Center
                 )
@@ -118,13 +118,13 @@ fun EsToolGrid(
     Card(
         modifier = modifier.fillMaxWidth(),
         cornerRadius = 12.dp,
-        insideMargin = PaddingValues(vertical = 12.dp, horizontal = 4.dp),
+        insideMargin = PaddingValues(vertical = 14.dp, horizontal = 2.dp),
         colors = CardDefaults.defaultColors(
-            color = Color(0xFF23262B),
+            color = EsCardColor,
             contentColor = Color.White
         )
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -168,17 +168,18 @@ private fun ToolItemCell(
         Image(
             painter = painterResource(tool.iconRes),
             contentDescription = tool.title,
-            modifier = Modifier.size(42.dp)
+            modifier = Modifier.size(32.dp)
         )
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         Text(
             text = tool.title,
-            fontSize = 10.5.sp,
-            color = Color(0xFFDDDDDD),
+            fontSize = 11.5.sp,
+            color = Color(0xFFD6D6D6),
             fontWeight = FontWeight.Normal,
             maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             textAlign = TextAlign.Center
         )
     }

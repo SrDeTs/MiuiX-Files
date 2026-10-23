@@ -31,6 +31,8 @@ sealed class Screen {
     data object Cleaner : Screen()
     data object AppManager : Screen()
     data object Settings : Screen()
+    data object Search : Screen()
+    data object History : Screen()
 }
 
 class MainActivity : ComponentActivity() {
@@ -44,6 +46,7 @@ class MainActivity : ComponentActivity() {
             MiuiXFilesTheme {
                 val backStack = remember { mutableStateListOf<Screen>(Screen.Home) }
                 val currentScreen = backStack.lastOrNull() ?: Screen.Home
+                androidx.activity.compose.BackHandler(enabled = backStack.size > 1) { backStack.removeAt(backStack.size - 1) }
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
@@ -61,9 +64,19 @@ class MainActivity : ComponentActivity() {
                                     onNavigateCleaner = { backStack.add(Screen.Cleaner) },
                                     onNavigateAppManager = { backStack.add(Screen.AppManager) },
                                     onNavigateSettings = { backStack.add(Screen.Settings) },
-                                    onOpenFile = { file -> openFile(file) }
+                                    onOpenFile = { file -> openFile(file) },
+                                    onSearch = { backStack.add(Screen.Search) },
+                                    onHistory = { backStack.add(Screen.History) }
                                 )
                             }
+                            is Screen.Search -> SearchScreen(
+                                onBack = { backStack.removeAt(backStack.size - 1) },
+                                onOpen = { f -> if (f.isDirectory) backStack.add(Screen.Explorer(f.file)) else openFile(f.file) }
+                            )
+                            is Screen.History -> HistoryScreen(
+                                onBack = { backStack.removeAt(backStack.size - 1) },
+                                onOpen = { f -> if (f.isDirectory) backStack.add(Screen.Explorer(f.file)) else openFile(f.file) }
+                            )
                             is Screen.Explorer -> {
                                 ExplorerScreen(
                                     initialDir = screen.directory,
