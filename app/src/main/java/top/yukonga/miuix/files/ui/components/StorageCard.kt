@@ -32,18 +32,18 @@ fun EsStorageCard(
     Card(
         modifier = modifier,
         cornerRadius = 10.dp,
-        insideMargin = PaddingValues(start = 10.dp, end = 8.dp, top = 15.dp, bottom = 15.dp),
+        insideMargin = PaddingValues(horizontal = 10.dp, vertical = 13.dp),
         colors = CardDefaults.defaultColors(color = EsCardColor, contentColor = Color.White),
         pressFeedbackType = PressFeedbackType.Sink,
         onClick = onClick
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             CircularStorageGauge(volume.progress, (volume.progress * 100).toInt(), progressColor = gaugeColor)
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Text(volume.title, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(4.dp))
-                Text(sub, fontSize = 10.sp, color = Color(0xFFA0A3A6), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(volume.title, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xCCFFFFFF), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(2.dp))
+                Text(sub, fontSize = 10.sp, color = Color(0x99FFFFFF), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }

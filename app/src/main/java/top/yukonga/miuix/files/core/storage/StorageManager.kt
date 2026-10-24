@@ -61,7 +61,7 @@ object StorageManager {
                 if (root.exists() && root.canRead()) {
                     volumes.add(
                         StorageVolumeInfo(
-                            title = "Cartão SD (${root.name})",
+                            title = "Armazenamento Interno",
                             path = root,
                             totalBytes = root.totalSpace,
                             freeBytes = root.freeSpace,

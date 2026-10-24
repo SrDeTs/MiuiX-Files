@@ -51,7 +51,7 @@ fun EsTopCategoryRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 2.dp),
+            .padding(horizontal = 5.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         for (item in items) {
@@ -68,20 +68,20 @@ fun EsTopCategoryRow(
                         interactionSource = interactionSource,
                         indication = null
                     ) { onCategoryClick(item.category) }
-                    .padding(vertical = 2.dp)
+                    .padding(top = 6.dp, bottom = 10.dp)
             ) {
                 Image(
                     painter = painterResource(item.iconRes),
                     contentDescription = item.title,
-                    modifier = Modifier.size(42.dp)
+                    modifier = Modifier.size(48.dp)
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(5.dp))
 
                 Text(
                     text = item.title,
-                    fontSize = 12.5.sp,
-                    color = Color(0xFFE6E6E6),
+                    fontSize = 13.sp,
+                    color = Color(0xCCFFFFFF),
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     textAlign = TextAlign.Center
@@ -123,14 +123,14 @@ fun EsToolGrid(
 
     Card(
         modifier = modifier.fillMaxWidth(),
-        cornerRadius = 12.dp,
-        insideMargin = PaddingValues(vertical = 14.dp, horizontal = 2.dp),
+        cornerRadius = 10.dp,
+        insideMargin = PaddingValues(vertical = 12.dp, horizontal = 2.dp),
         colors = CardDefaults.defaultColors(
             color = EsCardColor,
             contentColor = Color.White
         )
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -171,18 +171,23 @@ private fun ToolItemCell(
             )
             .padding(vertical = 2.dp, horizontal = 1.dp)
     ) {
-        Image(
-            painter = painterResource(tool.iconRes),
-            contentDescription = tool.title,
-            modifier = Modifier.size(32.dp)
-        )
+        Box(
+            modifier = Modifier.size(34.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(tool.iconRes),
+                contentDescription = tool.title,
+                modifier = Modifier.size(30.dp)
+            )
+        }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Text(
             text = tool.title,
-            fontSize = 11.5.sp,
-            color = Color(0xFFD6D6D6),
+            fontSize = 12.sp,
+            color = Color(0xCCFFFFFF),
             fontWeight = FontWeight.Normal,
             maxLines = 1,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,

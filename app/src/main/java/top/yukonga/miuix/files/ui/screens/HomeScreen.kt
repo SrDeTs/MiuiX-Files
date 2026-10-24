@@ -141,10 +141,9 @@ fun HomeScreen(
             LazyColumn(
                 Modifier.weight(1f).fillMaxWidth(),
                 contentPadding = PaddingValues(start = 10.dp, end = 10.dp, top = 14.dp, bottom = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item { EsTopCategoryRow(onCategoryClick = onNavigateCategory) }
-                item { Spacer(Modifier.height(6.dp)) }
                 item {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         volumes.getOrNull(0)?.let { v -> EsStorageCard(v, { onNavigateDir(v.path) }, Modifier.weight(1f), Color(0xFF2F7DF6)) }
@@ -154,17 +153,17 @@ fun HomeScreen(
                 item {
                     Card(
                         Modifier.fillMaxWidth(), cornerRadius = 10.dp,
-                        insideMargin = PaddingValues(horizontal = 12.dp, vertical = 16.dp),
+                        insideMargin = PaddingValues(horizontal = 10.dp, vertical = 13.dp),
                         colors = CardDefaults.defaultColors(color = EsCardColor, contentColor = Color.White),
                         pressFeedbackType = PressFeedbackType.Sink, onClick = onAnalyzer
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Image(painterResource(R.drawable.es_icon_analyse_pie), null, Modifier.size(34.dp))
-                            Spacer(Modifier.width(12.dp))
+                            Image(painterResource(R.drawable.es_icon_analyse_pie), null, Modifier.size(38.dp))
+                            Spacer(Modifier.width(10.dp))
                             Column {
-                                Text("Analis. de espaço", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = Color.White)
-                                Spacer(Modifier.height(4.dp))
-                                Text("mais arquivos para limpar", fontSize = 10.5.sp, color = Color(0xFFA0A3A6))
+                                Text("Analis. de espaço", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xCCFFFFFF))
+                                Spacer(Modifier.height(2.dp))
+                                Text("mais arquivos para limpar", fontSize = 10.sp, color = Color(0xFF999999))
                             }
                         }
                     }
