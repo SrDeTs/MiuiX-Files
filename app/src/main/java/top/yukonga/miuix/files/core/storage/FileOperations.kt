@@ -1,5 +1,8 @@
 package top.yukonga.miuix.files.core.storage
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.*
@@ -16,7 +19,17 @@ object FileOperations {
         val mode: ClipboardMode
     )
 
-    var currentClipboard: ClipboardItem? = null
+    data class TransferState(
+        val active: Boolean = false,
+        val title: String = "",
+        val currentFile: String = "",
+        val completedCount: Int = 0,
+        val totalCount: Int = 0,
+        val progress: Float = 0f
+    )
+
+    var currentClipboard by mutableStateOf<ClipboardItem?>(null)
+    var transferState by mutableStateOf(TransferState())
 
     suspend fun createDirectory(parent: File, name: String): Result<File> = withContext(Dispatchers.IO) {
         val newDir = File(parent, name)
@@ -116,29 +129,109 @@ object FileOperations {
 
     suspend fun paste(targetDir: File): Result<Int> = withContext(Dispatchers.IO) {
         val clip = currentClipboard ?: return@withContext Result.failure(Exception("Área de transferência vazia"))
+        val totalFiles = clip.files.size.coerceAtLeast(1)
+        val totalBytes = clip.files.sumOf { estimateSize(it) }.coerceAtLeast(1L)
+        var copiedBytes = 0L
+        val actionTitle = if (clip.mode == ClipboardMode.CUT) "Movendo" else "Copiando"
+
+        transferState = TransferState(
+            active = true,
+            title = actionTitle,
+            currentFile = clip.files.firstOrNull()?.name ?: "",
+            completedCount = 0,
+            totalCount = totalFiles,
+            progress = 0.02f
+        )
+
         var count = 0
         try {
-            for (src in clip.files) {
-                val dest = File(targetDir, src.name)
+            for ((index, src) in clip.files.withIndex()) {
+                val dest = resolveTargetFile(targetDir, src, clip.mode)
+                transferState = transferState.copy(
+                    currentFile = src.name,
+                    completedCount = index,
+                    progress = (copiedBytes.toFloat() / totalBytes.toFloat()).coerceIn(0.05f, 0.98f)
+                )
                 if (clip.mode == ClipboardMode.CUT) {
-                    if (src.renameTo(dest)) {
+                    if (src.absolutePath == dest.absolutePath) {
+                        copiedBytes += estimateSize(src)
+                        count++
+                    } else if (src.renameTo(dest)) {
+                        copiedBytes += estimateSize(dest)
                         count++
                     } else {
-                        copyRecursive(src, dest)
+                        copyRecursiveWithProgress(src, dest) { delta ->
+                            copiedBytes += delta
+                            transferState = transferState.copy(
+                                progress = (copiedBytes.toFloat() / totalBytes.toFloat()).coerceIn(0.05f, 0.99f)
+                            )
+                        }
                         src.deleteRecursively()
                         count++
                     }
                 } else {
-                    copyRecursive(src, dest)
+                    copyRecursiveWithProgress(src, dest) { delta ->
+                        copiedBytes += delta
+                        transferState = transferState.copy(
+                            progress = (copiedBytes.toFloat() / totalBytes.toFloat()).coerceIn(0.05f, 0.99f)
+                        )
+                    }
                     count++
                 }
             }
-            if (clip.mode == ClipboardMode.CUT) {
-                currentClipboard = null
-            }
+            transferState = transferState.copy(
+                completedCount = totalFiles,
+                progress = 1f
+            )
+            currentClipboard = null
+            StorageManager.invalidateCaches()
+            kotlinx.coroutines.delay(320)
+            transferState = TransferState(active = false)
             Result.success(count)
         } catch (e: Exception) {
+            transferState = TransferState(active = false)
             Result.failure(e)
+        }
+    }
+
+    private fun resolveTargetFile(targetDir: File, src: File, mode: ClipboardMode): File {
+        var candidate = File(targetDir, src.name)
+        if (!candidate.exists()) return candidate
+        if (mode == ClipboardMode.CUT && src.absolutePath == candidate.absolutePath) return candidate
+        val base = src.nameWithoutExtension.ifEmpty { src.name }
+        val ext = src.extension.let { if (it.isNotEmpty()) ".$it" else "" }
+        var idx = 1
+        while (candidate.exists()) {
+            candidate = File(targetDir, "$base ($idx)$ext")
+            idx++
+        }
+        return candidate
+    }
+
+    private fun estimateSize(file: File): Long {
+        if (!file.exists()) return 0L
+        if (!file.isDirectory) return file.length().coerceAtLeast(1024L)
+        return file.listFiles()?.sumOf { estimateSize(it) } ?: 4096L
+    }
+
+    private fun copyRecursiveWithProgress(source: File, destination: File, onBytes: (Long) -> Unit) {
+        if (source.isDirectory) {
+            if (!destination.exists()) destination.mkdirs()
+            source.listFiles()?.forEach { child ->
+                copyRecursiveWithProgress(child, File(destination, child.name), onBytes)
+            }
+        } else {
+            destination.parentFile?.mkdirs()
+            val buffer = ByteArray(32 * 1024)
+            source.inputStream().use { input ->
+                destination.outputStream().use { output ->
+                    var read: Int
+                    while (input.read(buffer).also { read = it } > 0) {
+                        output.write(buffer, 0, read)
+                        onBytes(read.toLong())
+                    }
+                }
+            }
         }
     }
 

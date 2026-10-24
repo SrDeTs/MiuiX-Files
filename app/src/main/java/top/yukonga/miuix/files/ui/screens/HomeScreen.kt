@@ -30,6 +30,7 @@ import top.yukonga.miuix.files.core.model.FileItem
 import top.yukonga.miuix.files.core.model.StorageVolumeInfo
 import top.yukonga.miuix.files.core.storage.StorageManager
 import top.yukonga.miuix.files.ui.components.*
+import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Text
@@ -37,6 +38,7 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
+import top.yukonga.miuix.kmp.utils.overScrollVertical
 import java.io.File
 
 /** Grupo de recentes no estilo ES: "2 hora atrás  2 imagem de .Statuses". */
@@ -139,7 +141,7 @@ fun HomeScreen(
             EsTopHeader(tabTitle = "Página Inicial", onMenuClick = { drawerOpen = true }, onTabCloseClick = {})
 
             LazyColumn(
-                Modifier.weight(1f).fillMaxWidth(),
+                Modifier.weight(1f).fillMaxWidth().overScrollVertical(),
                 contentPadding = PaddingValues(start = 10.dp, end = 10.dp, top = 14.dp, bottom = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -197,13 +199,19 @@ fun HomeScreen(
                                 colorFilter = ColorFilter.tint(Color(0xFF8A8D91))
                             )
                         }
-                        if (showRecent) {
-                            if (groups.isEmpty()) {
-                                Text("Nenhum arquivo recente", fontSize = 12.sp, color = Color(0xFF8A8D91), modifier = Modifier.padding(vertical = 16.dp))
-                            }
-                            groups.take(6).forEachIndexed { i, g ->
-                                if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF3A3D40)))
-                                RecentGroupBlock(g, onOpenFile, onNavigateDir)
+                        AnimatedVisibility(
+                            visible = showRecent,
+                            enter = expandVertically(animationSpec = folmeSpring(damping = 0.85f, response = 0.30f)) + fadeIn(),
+                            exit = shrinkVertically(animationSpec = folmeSpring(damping = 0.9f, response = 0.22f)) + fadeOut()
+                        ) {
+                            Column {
+                                if (groups.isEmpty()) {
+                                    Text("Nenhum arquivo recente", fontSize = 12.sp, color = Color(0xFF8A8D91), modifier = Modifier.padding(vertical = 16.dp))
+                                }
+                                groups.take(6).forEachIndexed { i, g ->
+                                    if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF3A3D40)))
+                                    RecentGroupBlock(g, onOpenFile, onNavigateDir)
+                                }
                             }
                         }
                     }
@@ -218,11 +226,19 @@ fun HomeScreen(
             )
         }
 
-        // Gaveta lateral (☰)
-        AnimatedVisibility(drawerOpen, enter = fadeIn(), exit = fadeOut()) {
+        // Gaveta lateral (☰) com mola Folme
+        AnimatedVisibility(
+            visible = drawerOpen,
+            enter = fadeIn(animationSpec = folmeSpring(damping = 0.9f, response = 0.28f)),
+            exit = fadeOut(animationSpec = folmeSpring(damping = 0.9f, response = 0.22f))
+        ) {
             Box(Modifier.fillMaxSize().background(Color(0x99000000)).clickable(remember { MutableInteractionSource() }, null) { drawerOpen = false })
         }
-        AnimatedVisibility(drawerOpen, enter = slideInHorizontally { -it }, exit = slideOutHorizontally { -it }) {
+        AnimatedVisibility(
+            visible = drawerOpen,
+            enter = slideInHorizontally(animationSpec = folmeSpring(damping = 0.86f, response = 0.32f)) { -it },
+            exit = slideOutHorizontally(animationSpec = folmeSpring(damping = 0.92f, response = 0.25f)) { -it }
+        ) {
             EsDrawer(
                 onClose = { drawerOpen = false },
                 onHome = { drawerOpen = false },

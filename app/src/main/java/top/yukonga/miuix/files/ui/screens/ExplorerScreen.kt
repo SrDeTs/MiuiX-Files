@@ -2,6 +2,7 @@ package top.yukonga.miuix.files.ui.screens
 
 import android.content.Context
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,6 +24,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -33,9 +35,11 @@ import top.yukonga.miuix.files.core.storage.FileOperations
 import top.yukonga.miuix.files.core.storage.StorageManager
 import top.yukonga.miuix.files.ui.components.*
 import top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences
+import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.utils.SinkFeedback
+import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.pressable
 import java.io.File
 
@@ -70,7 +74,14 @@ fun ExplorerScreen(
     var showPropertiesDialog by remember { mutableStateOf(false) }
     var tappedApkFile by remember { mutableStateOf<File?>(null) }
 
-    var clipboardState by remember { mutableStateOf(FileOperations.currentClipboard) }
+    val clipboardState = FileOperations.currentClipboard
+    val transferState = FileOperations.transferState
+    var navForward by remember { mutableStateOf(true) }
+
+    fun navigateToDir(target: File) {
+        navForward = target.absolutePath.length >= currentDir.absolutePath.length
+        currentDir = target
+    }
 
     fun refreshFiles() {
         StorageManager.getCachedDir(currentDir)?.let {
@@ -79,7 +90,6 @@ fun ExplorerScreen(
         scope.launch {
             files = StorageManager.listFiles(currentDir, showHidden = showHidden, sortOption = currentSort)
             selectedPaths = emptySet()
-            clipboardState = FileOperations.currentClipboard
         }
     }
 
@@ -93,7 +103,7 @@ fun ExplorerScreen(
         } else {
             val parent = currentDir.parentFile
             if (parent != null && parent.canRead()) {
-                currentDir = parent
+                navigateToDir(parent)
             } else {
                 onNavigateBack()
             }
@@ -210,11 +220,18 @@ fun ExplorerScreen(
             val usedPct = if (totalSpace > 0) (((totalSpace - currentDir.freeSpace) * 100L) / totalSpace).toInt().coerceIn(0, 100) else 22
             EsPathBar(
                 currentDir = currentDir,
-                onNavigate = { target -> currentDir = target },
+                onNavigate = { target -> navigateToDir(target) },
                 percentage = usedPct
             )
 
-            if (showSearchBar) {
+            // Inline Copy / Cut Progress Strip (never blocks the full screen)
+            InlineTransferProgressStrip(state = transferState)
+
+            AnimatedVisibility(
+                visible = showSearchBar,
+                enter = expandVertically(animationSpec = folmeSpring(damping = 0.85f, response = 0.28f)) + fadeIn(),
+                exit = shrinkVertically(animationSpec = folmeSpring(damping = 0.9f, response = 0.22f)) + fadeOut()
+            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -238,158 +255,206 @@ fun ExplorerScreen(
                 }
             }
 
-            // Content Area (Grid or List)
+            // Content Area (Grid or List) with MIUIX Folme spring transitions and overscroll
             Box(modifier = Modifier.weight(1f)) {
-                if (displayFiles.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "Pasta Vazia",
-                            color = Color(0xFF9E9E9E),
-                            fontSize = 14.sp
-                        )
-                    }
-                } else if (isGridView) {
-                    // 1:1 4-Column Grid View
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        items(displayFiles, key = { it.path }) { item ->
-                            val isSelected = selectedPaths.contains(item.path)
-                            FileGridItem(
-                                item = item,
-                                isSelected = isSelected,
-                                isSelectionMode = isSelectionMode,
-                                onClick = {
-                                    if (isSelectionMode) {
-                                        selectedPaths = if (isSelected) selectedPaths - item.path else selectedPaths + item.path
-                                    } else {
-                                        if (item.isDirectory) currentDir = item.file
-                                        else if (item.extension == "apk") tappedApkFile = item.file
-                                        else onOpenFile(item.file)
-                                    }
-                                },
-                                onLongClick = {
-                                    if (!isSelectionMode) selectedPaths = setOf(item.path)
-                                }
+                AnimatedContent(
+                    targetState = Pair(currentDir.absolutePath, isGridView),
+                    transitionSpec = {
+                        val dirChanged = initialState.first != targetState.first
+                        if (dirChanged) {
+                            val sign = if (navForward) 1 else -1
+                            (slideInHorizontally(animationSpec = folmeSpring(damping = 0.88f, response = 0.30f)) { (it * 0.22f * sign).toInt() } +
+                                fadeIn(animationSpec = folmeSpring(damping = 0.9f, response = 0.25f))) togetherWith
+                                (slideOutHorizontally(animationSpec = folmeSpring(damping = 0.9f, response = 0.24f)) { (-it * 0.14f * sign).toInt() } +
+                                    fadeOut(animationSpec = folmeSpring(damping = 0.9f, response = 0.2f)))
+                        } else {
+                            fadeIn(animationSpec = folmeSpring(damping = 0.9f, response = 0.25f)) togetherWith
+                                fadeOut(animationSpec = folmeSpring(damping = 0.9f, response = 0.2f))
+                        }
+                    },
+                    label = "explorer_dir_transition"
+                ) { (_, gridMode) ->
+                    if (displayFiles.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "Pasta Vazia",
+                                color = Color(0xFF9E9E9E),
+                                fontSize = 14.sp
                             )
                         }
-                    }
-                } else {
-                    // List View
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(bottom = 12.dp)
-                    ) {
-                        items(displayFiles, key = { it.path }) { item ->
-                            val isSelected = selectedPaths.contains(item.path)
-                            FileListItem(
-                                item = item,
-                                isSelected = isSelected,
-                                isSelectionMode = isSelectionMode,
-                                onClick = {
-                                    if (isSelectionMode) {
-                                        selectedPaths = if (isSelected) selectedPaths - item.path else selectedPaths + item.path
-                                    } else {
-                                        if (item.isDirectory) currentDir = item.file
-                                        else if (item.extension == "apk") tappedApkFile = item.file
-                                        else onOpenFile(item.file)
+                    } else if (gridMode) {
+                        // 1:1 4-Column Grid View with MIUIX overScrollVertical
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(4),
+                            modifier = Modifier.fillMaxSize().overScrollVertical(),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            items(displayFiles, key = { it.path }) { item ->
+                                val isSelected = selectedPaths.contains(item.path)
+                                FileGridItem(
+                                    item = item,
+                                    isSelected = isSelected,
+                                    isSelectionMode = isSelectionMode,
+                                    modifier = Modifier.animateItem(
+                                        placementSpec = folmeSpring(damping = 0.85f, response = 0.30f, visibilityThreshold = IntOffset(1, 1))
+                                    ),
+                                    onClick = {
+                                        if (isSelectionMode) {
+                                            selectedPaths = if (isSelected) selectedPaths - item.path else selectedPaths + item.path
+                                        } else {
+                                            if (item.isDirectory) navigateToDir(item.file)
+                                            else if (item.extension == "apk") tappedApkFile = item.file
+                                            else onOpenFile(item.file)
+                                        }
+                                    },
+                                    onLongClick = {
+                                        if (!isSelectionMode) selectedPaths = setOf(item.path)
                                     }
-                                },
-                                onLongClick = {
-                                    if (!isSelectionMode) selectedPaths = setOf(item.path)
-                                }
-                            )
+                                )
+                            }
+                        }
+                    } else {
+                        // List View with MIUIX overScrollVertical
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize().overScrollVertical(),
+                            contentPadding = PaddingValues(bottom = 12.dp)
+                        ) {
+                            items(displayFiles, key = { it.path }) { item ->
+                                val isSelected = selectedPaths.contains(item.path)
+                                FileListItem(
+                                    item = item,
+                                    isSelected = isSelected,
+                                    isSelectionMode = isSelectionMode,
+                                    modifier = Modifier.animateItem(
+                                        placementSpec = folmeSpring(damping = 0.85f, response = 0.30f, visibilityThreshold = IntOffset(1, 1))
+                                    ),
+                                    onClick = {
+                                        if (isSelectionMode) {
+                                            selectedPaths = if (isSelected) selectedPaths - item.path else selectedPaths + item.path
+                                        } else {
+                                            if (item.isDirectory) navigateToDir(item.file)
+                                            else if (item.extension == "apk") tappedApkFile = item.file
+                                            else onOpenFile(item.file)
+                                        }
+                                    },
+                                    onLongClick = {
+                                        if (!isSelectionMode) selectedPaths = setOf(item.path)
+                                    }
+                                )
+                            }
                         }
                     }
                 }
 
-                // Clipboard Floating Indicator
-                if (clipboardState != null && !isSelectionMode) {
-                    ClipboardFloatingBar(
-                        clipboard = clipboardState!!,
+                // Right-edge semi-circular Clipboard Tab (1:1 ES File Explorer)
+                EsClipboardSideTab(
+                    clipboard = if (!isSelectionMode) clipboardState else null,
+                    onPaste = {
+                        scope.launch {
+                            FileOperations.paste(currentDir)
+                            refreshFiles()
+                        }
+                    },
+                    onClear = {
+                        FileOperations.currentClipboard = null
+                    },
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(top = 60.dp)
+                )
+            }
+
+            // 1:1 Bottom Bar with AnimatedContent transition between Normal / Selection / Clipboard Paste modes
+            val bottomMode = when {
+                isSelectionMode -> 1
+                clipboardState != null -> 2
+                else -> 0
+            }
+            AnimatedContent(
+                targetState = bottomMode,
+                transitionSpec = {
+                    (slideInVertically(animationSpec = folmeSpring(damping = 0.85f, response = 0.28f)) { it / 2 } + fadeIn()) togetherWith
+                        (slideOutVertically(animationSpec = folmeSpring(damping = 0.9f, response = 0.22f)) { it / 2 } + fadeOut())
+                },
+                label = "explorer_bottom_bar"
+            ) { mode ->
+                when (mode) {
+                    1 -> FileActionBottomBar(
+                        selectedCount = selectedPaths.size,
+                        onCopy = {
+                            val selectedFiles = files.filter { selectedPaths.contains(it.path) }.map { it.file }
+                            FileOperations.currentClipboard = FileOperations.ClipboardItem(selectedFiles, FileOperations.ClipboardMode.COPY)
+                            selectedPaths = emptySet()
+                        },
+                        onCut = {
+                            val selectedFiles = files.filter { selectedPaths.contains(it.path) }.map { it.file }
+                            FileOperations.currentClipboard = FileOperations.ClipboardItem(selectedFiles, FileOperations.ClipboardMode.CUT)
+                            selectedPaths = emptySet()
+                        },
+                        onDelete = { showDeleteDialog = true },
+                        onRename = {
+                            val selected = files.firstOrNull { selectedPaths.contains(it.path) }
+                            if (selected != null) {
+                                renameFileName = selected.name
+                                showRenameDialog = true
+                            }
+                        },
+                        onMore = {
+                            showSelectionMoreDialog = true
+                        }
+                    )
+                    2 -> EsClipboardBottomBar(
                         onPaste = {
                             scope.launch {
                                 FileOperations.paste(currentDir)
                                 refreshFiles()
                             }
                         },
-                        onCancel = {
-                            FileOperations.currentClipboard = null
-                            clipboardState = null
-                        },
-                        modifier = Modifier.align(Alignment.BottomCenter)
-                    )
-                }
-            }
-
-            // 1:1 Bottom Bar
-            if (isSelectionMode) {
-                FileActionBottomBar(
-                    selectedCount = selectedPaths.size,
-                    onCopy = {
-                        val selectedFiles = files.filter { selectedPaths.contains(it.path) }.map { it.file }
-                        FileOperations.currentClipboard = FileOperations.ClipboardItem(selectedFiles, FileOperations.ClipboardMode.COPY)
-                        clipboardState = FileOperations.currentClipboard
-                        selectedPaths = emptySet()
-                    },
-                    onCut = {
-                        val selectedFiles = files.filter { selectedPaths.contains(it.path) }.map { it.file }
-                        FileOperations.currentClipboard = FileOperations.ClipboardItem(selectedFiles, FileOperations.ClipboardMode.CUT)
-                        clipboardState = FileOperations.currentClipboard
-                        selectedPaths = emptySet()
-                    },
-                    onDelete = { showDeleteDialog = true },
-                    onRename = {
-                        val selected = files.firstOrNull { selectedPaths.contains(it.path) }
-                        if (selected != null) {
-                            renameFileName = selected.name
-                            showRenameDialog = true
-                        }
-                    },
-                    onMore = {
-                        showSelectionMoreDialog = true
-                    }
-                )
-            } else {
-                // ES Bottom Bar with Visualizar toggle
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color(0xFF292C2E))
-                        .navigationBarsPadding()
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(Color(0xFF383C42))
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(54.dp)
-                            .padding(horizontal = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceAround,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        ExplorerBottomActionItem("Novo", R.drawable.toolbar_new, modifier = Modifier.weight(1f)) {
+                        onNewFolder = {
                             newFolderName = ""
                             showNewFolderDialog = true
+                        },
+                        onCancel = {
+                            FileOperations.currentClipboard = null
                         }
-                        ExplorerBottomActionItem("Procurar", R.drawable.toolbar_search, modifier = Modifier.weight(1f)) {
-                            showSearchBar = !showSearchBar
-                            if (!showSearchBar) searchQuery = ""
-                        }
-                        ExplorerBottomActionItem("Atualizar", R.drawable.toolbar_refresh, modifier = Modifier.weight(1f)) { refreshFiles() }
-                        ExplorerBottomActionItem("Visualizar", R.drawable.toolbar_view, modifier = Modifier.weight(1f)) {
-                            isGridView = !isGridView
-                        }
-                        ExplorerBottomActionItem("Mais", R.drawable.toolbar_more, modifier = Modifier.weight(1f)) {
-                            showMoreMenu = true
+                    )
+                    else -> Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF292C2E))
+                            .navigationBarsPadding()
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(Color(0xFF383C42))
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(54.dp)
+                                .padding(horizontal = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceAround,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            ExplorerBottomActionItem("Novo", R.drawable.toolbar_new, modifier = Modifier.weight(1f)) {
+                                newFolderName = ""
+                                showNewFolderDialog = true
+                            }
+                            ExplorerBottomActionItem("Procurar", R.drawable.toolbar_search, modifier = Modifier.weight(1f)) {
+                                showSearchBar = !showSearchBar
+                                if (!showSearchBar) searchQuery = ""
+                            }
+                            ExplorerBottomActionItem("Atualizar", R.drawable.toolbar_refresh, modifier = Modifier.weight(1f)) { refreshFiles() }
+                            ExplorerBottomActionItem("Visualizar", R.drawable.toolbar_view, modifier = Modifier.weight(1f)) {
+                                isGridView = !isGridView
+                            }
+                            ExplorerBottomActionItem("Mais", R.drawable.toolbar_more, modifier = Modifier.weight(1f)) {
+                                showMoreMenu = true
+                            }
                         }
                     }
                 }

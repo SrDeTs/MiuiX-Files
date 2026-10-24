@@ -1,5 +1,6 @@
 package top.yukonga.miuix.files.ui.screens
 
+import androidx.compose.animation.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -27,15 +29,20 @@ import top.yukonga.miuix.files.R
 import top.yukonga.miuix.files.core.model.FileCategory
 import top.yukonga.miuix.files.core.model.FileItem
 import top.yukonga.miuix.files.core.model.SortOption
+import top.yukonga.miuix.files.core.storage.FileOperations
 import top.yukonga.miuix.files.core.storage.StorageManager
 import top.yukonga.miuix.files.ui.components.EsApkPropertiesDialog
+import top.yukonga.miuix.files.ui.components.EsClipboardSideTab
 import top.yukonga.miuix.files.ui.components.FileGridItem
 import top.yukonga.miuix.files.ui.components.FileListItem
+import top.yukonga.miuix.files.ui.components.InlineTransferProgressStrip
+import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.utils.SinkFeedback
+import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.pressable
 import java.io.File
 
@@ -234,7 +241,14 @@ fun CategoryScreen(
                 }
             }
 
-            if (showSearchBar) {
+            // Inline Copy / Cut Progress Strip
+            InlineTransferProgressStrip(state = FileOperations.transferState)
+
+            AnimatedVisibility(
+                visible = showSearchBar,
+                enter = expandVertically(animationSpec = folmeSpring(damping = 0.85f, response = 0.28f)) + fadeIn(),
+                exit = shrinkVertically(animationSpec = folmeSpring(damping = 0.9f, response = 0.22f)) + fadeOut()
+            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -273,10 +287,10 @@ fun CategoryScreen(
                 } else if (isGridView) {
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(4),
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier.fillMaxSize().overScrollVertical(),
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         items(displayFiles, key = { it.path }) { item ->
                             val isSelected = selectedPaths.contains(item.path)
@@ -284,6 +298,9 @@ fun CategoryScreen(
                                 item = item,
                                 isSelected = isSelected,
                                 isSelectionMode = isSelectionMode,
+                                modifier = Modifier.animateItem(
+                                    placementSpec = folmeSpring(damping = 0.85f, response = 0.30f, visibilityThreshold = IntOffset(1, 1))
+                                ),
                                 onClick = {
                                     if (isSelectionMode) {
                                         selectedPaths = if (isSelected) selectedPaths - item.path else selectedPaths + item.path
@@ -301,7 +318,7 @@ fun CategoryScreen(
                     }
                 } else {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxSize().overScrollVertical(),
                         contentPadding = PaddingValues(bottom = 12.dp)
                     ) {
                         items(displayFiles, key = { it.path }) { item ->
@@ -310,6 +327,9 @@ fun CategoryScreen(
                                 item = item,
                                 isSelected = isSelected,
                                 isSelectionMode = isSelectionMode,
+                                modifier = Modifier.animateItem(
+                                    placementSpec = folmeSpring(damping = 0.85f, response = 0.30f, visibilityThreshold = IntOffset(1, 1))
+                                ),
                                 onClick = {
                                     if (isSelectionMode) {
                                         selectedPaths = if (isSelected) selectedPaths - item.path else selectedPaths + item.path
@@ -326,6 +346,15 @@ fun CategoryScreen(
                         }
                     }
                 }
+
+                EsClipboardSideTab(
+                    clipboard = if (!isSelectionMode) FileOperations.currentClipboard else null,
+                    onPaste = {},
+                    onClear = { FileOperations.currentClipboard = null },
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(top = 60.dp)
+                )
             }
 
             // Bottom Bar

@@ -29,6 +29,7 @@ import top.yukonga.miuix.files.ui.components.EsCardColor
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.utils.overScrollVertical
 import java.io.File
 
 private data class AnalyzerResult(val dirs: List<Pair<File, Long>>, val bigFiles: List<FileItem>)
@@ -64,7 +65,7 @@ fun AnalyzerScreen(onBack: () -> Unit, onOpenDir: (File) -> Unit, onOpenFile: (F
     val total = root.totalSpace
     val used = total - root.freeSpace
     EsSubScreen("Analis. de espaço", onBack) {
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        LazyColumn(Modifier.fillMaxSize().overScrollVertical(), contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item {
                 Card(
                     Modifier.fillMaxWidth(), cornerRadius = 10.dp, insideMargin = PaddingValues(16.dp),

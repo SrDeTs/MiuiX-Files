@@ -20,6 +20,7 @@ import androidx.core.content.FileProvider
 import top.yukonga.miuix.files.core.model.FileCategory
 import top.yukonga.miuix.files.ui.screens.*
 import top.yukonga.miuix.files.ui.theme.MiuiXFilesTheme
+import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
@@ -53,6 +54,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             MiuiXFilesTheme {
                 val backStack = remember { mutableStateListOf<Screen>(Screen.Home) }
+                var previousDepth by remember { mutableIntStateOf(1) }
+                val currentDepth = backStack.size
+                val isForward = currentDepth >= previousDepth
+                SideEffect { previousDepth = currentDepth }
                 val currentScreen = backStack.lastOrNull() ?: Screen.Home
                 androidx.activity.compose.BackHandler(enabled = backStack.size > 1) { backStack.removeAt(backStack.size - 1) }
 
@@ -78,7 +83,24 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        when (val screen = currentScreen) {
+                        AnimatedContent(
+                            targetState = currentScreen,
+                            transitionSpec = {
+                                if (isForward) {
+                                    (slideInHorizontally(animationSpec = folmeSpring(damping = 0.88f, response = 0.34f)) { it } +
+                                        fadeIn(animationSpec = folmeSpring(damping = 0.9f, response = 0.25f))) togetherWith
+                                        (slideOutHorizontally(animationSpec = folmeSpring(damping = 0.9f, response = 0.34f)) { -(it / 4) } +
+                                            fadeOut(animationSpec = folmeSpring(damping = 0.9f, response = 0.30f), targetAlpha = 0.85f))
+                                } else {
+                                    (slideInHorizontally(animationSpec = folmeSpring(damping = 0.88f, response = 0.32f)) { -(it / 4) } +
+                                        fadeIn(animationSpec = folmeSpring(damping = 0.9f, response = 0.25f), initialAlpha = 0.85f)) togetherWith
+                                        (slideOutHorizontally(animationSpec = folmeSpring(damping = 0.9f, response = 0.30f)) { it } +
+                                            fadeOut(animationSpec = folmeSpring(damping = 0.9f, response = 0.22f)))
+                                }
+                            },
+                            label = "miuix_nav_screen_transition"
+                        ) { screen ->
+                            when (screen) {
                             is Screen.Home -> {
                                 HomeScreen(
                                     onNavigateDir = { dir -> backStack.add(Screen.Explorer(dir)) },
@@ -170,6 +192,7 @@ class MainActivity : ComponentActivity() {
                                     onNavigateBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) }
                                 )
                             }
+                        }
                         }
                     }
                 }
