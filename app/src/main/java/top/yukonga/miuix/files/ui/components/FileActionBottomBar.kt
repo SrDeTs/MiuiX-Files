@@ -34,7 +34,8 @@ fun FileActionBottomBar(
     onDelete: () -> Unit,
     onRename: () -> Unit,
     onMore: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    restoreMode: Boolean = false
 ) {
     Column(
         modifier = modifier
@@ -59,7 +60,9 @@ fun FileActionBottomBar(
             ActionItem(iconRes = R.drawable.toolbar_copy, label = "Copiar", onClick = onCopy, modifier = Modifier.weight(1f))
             ActionItem(iconRes = R.drawable.toolbar_cut, label = "Cortar", onClick = onCut, modifier = Modifier.weight(1f))
             ActionItem(iconRes = R.drawable.toolbar_delete, label = "Excluir", onClick = onDelete, modifier = Modifier.weight(1f))
-            if (selectedCount == 1) {
+            if (restoreMode) {
+                ActionItem(iconRes = R.drawable.toolbar_refresh, label = "Restaurar", onClick = onRename, modifier = Modifier.weight(1f))
+            } else if (selectedCount == 1) {
                 ActionItem(iconRes = R.drawable.toolbar_rename, label = "Renomear", onClick = onRename, modifier = Modifier.weight(1f))
             }
             ActionItem(iconRes = R.drawable.toolbar_more, label = "Mais", onClick = onMore, modifier = Modifier.weight(1f))

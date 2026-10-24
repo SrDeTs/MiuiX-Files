@@ -326,6 +326,7 @@ fun CategoryScreen(
             if (isSelectionMode) {
                 top.yukonga.miuix.files.ui.components.FileActionBottomBar(
                     selectedCount = selectedPaths.size,
+                    restoreMode = category == FileCategory.RECYCLE_BIN,
                     onCopy = {
                         val sel = files.filter { selectedPaths.contains(it.path) }.map { it.file }
                         top.yukonga.miuix.files.core.storage.FileOperations.currentClipboard =
@@ -339,7 +340,16 @@ fun CategoryScreen(
                         selectedPaths = emptySet()
                     },
                     onDelete = { showDeleteDialog = true },
-                    onRename = {},
+                    onRename = {
+                        if (category == FileCategory.RECYCLE_BIN) {
+                            val sel = files.filter { selectedPaths.contains(it.path) }.map { it.file }
+                            scope.launch {
+                                top.yukonga.miuix.files.core.storage.FileOperations.restoreFromRecycle(sel)
+                                selectedPaths = emptySet()
+                                files = StorageManager.getCategoryFiles(category, context = context, forceRefresh = true)
+                            }
+                        }
+                    },
                     onMore = {
                         val first = files.firstOrNull { selectedPaths.contains(it.path) }?.file
                         if (first != null) {
@@ -377,8 +387,13 @@ fun CategoryScreen(
                         horizontalArrangement = Arrangement.SpaceAround,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        CategoryBottomItem("Novo", R.drawable.toolbar_new, modifier = Modifier.weight(1f)) {
-                            showMoreMenu = true
+                        CategoryBottomItem(if (category == FileCategory.RECYCLE_BIN) "Esvaziar" else "Novo", if (category == FileCategory.RECYCLE_BIN) R.drawable.toolbar_delete else R.drawable.toolbar_new, modifier = Modifier.weight(1f)) {
+                            if (category == FileCategory.RECYCLE_BIN) {
+                                scope.launch {
+                                    top.yukonga.miuix.files.core.storage.FileOperations.emptyRecycle()
+                                    files = StorageManager.getCategoryFiles(category, context = context, forceRefresh = true)
+                                }
+                            } else showMoreMenu = true
                         }
                         CategoryBottomItem("Procurar", R.drawable.toolbar_search, modifier = Modifier.weight(1f)) {
                             showSearchBar = !showSearchBar
@@ -410,7 +425,11 @@ fun CategoryScreen(
             title = "Excluir (${selectedPaths.size})",
             content = {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Deseja excluir ${selectedPaths.size} arquivo(s) selecionado(s)?", color = Color.White, fontSize = 13.5.sp)
+                    Text(
+                        if (category == FileCategory.RECYCLE_BIN) "Excluir ${selectedPaths.size} arquivo(s) permanentemente?"
+                        else "Mover ${selectedPaths.size} arquivo(s) para a Lixeira?",
+                        color = Color.White, fontSize = 13.5.sp
+                    )
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         TextButton(text = "Cancelar", onClick = { showDeleteDialog = false })
                         Spacer(Modifier.width(8.dp))
@@ -420,7 +439,7 @@ fun CategoryScreen(
                                 val toDel = files.filter { selectedPaths.contains(it.path) }.map { it.file }
                                 showDeleteDialog = false
                                 scope.launch {
-                                    top.yukonga.miuix.files.core.storage.FileOperations.deleteFiles(toDel)
+                                    top.yukonga.miuix.files.core.storage.FileOperations.moveToRecycle(toDel)
                                     selectedPaths = emptySet()
                                     files = StorageManager.getCategoryFiles(category, context = context, forceRefresh = true)
                                 }

@@ -485,7 +485,7 @@ fun ExplorerScreen(
             content = {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Tem certeza que deseja excluir ${selectedPaths.size} item(ns) permanentemente?",
+                        text = "Mover ${selectedPaths.size} item(ns) para a Lixeira?",
                         color = Color.White
                     )
                     Spacer(modifier = Modifier.height(16.dp))
@@ -499,7 +499,7 @@ fun ExplorerScreen(
                             onClick = {
                                 scope.launch {
                                     val filesToDelete = files.filter { selectedPaths.contains(it.path) }.map { it.file }
-                                    FileOperations.deleteFiles(filesToDelete)
+                                    FileOperations.moveToRecycle(filesToDelete)
                                     showDeleteDialog = false
                                     refreshFiles()
                                 }

@@ -42,6 +42,61 @@ object FileOperations {
         }
     }
 
+    /** Lixeira estilo ES: /sdcard/.estrongs/recycle + índice com caminho original. */
+    val recycleDir: File get() = File(android.os.Environment.getExternalStorageDirectory(), ".estrongs/recycle").apply { mkdirs() }
+    private val recycleIndex: File get() = File(recycleDir, ".index")
+
+    private fun readIndex(): MutableMap<String, String> =
+        runCatching {
+            recycleIndex.readLines().mapNotNull { l -> l.split('\t').takeIf { it.size == 2 }?.let { it[0] to it[1] } }.toMap().toMutableMap()
+        }.getOrDefault(mutableMapOf())
+
+    private fun writeIndex(map: Map<String, String>) {
+        runCatching { recycleIndex.writeText(map.entries.joinToString("\n") { "${it.key}\t${it.value}" }) }
+    }
+
+    fun isInRecycle(f: File) = f.absolutePath.startsWith(recycleDir.absolutePath)
+
+    /** Move para a lixeira; arquivos já na lixeira são excluídos de vez. */
+    suspend fun moveToRecycle(files: List<File>): Result<Int> = withContext(Dispatchers.IO) {
+        val idx = readIndex()
+        var count = 0
+        for (f in files) {
+            if (isInRecycle(f)) {
+                f.deleteRecursively(); idx.remove(f.name); count++; continue
+            }
+            val dest = File(recycleDir, "${System.currentTimeMillis()}_${f.name}")
+            val ok = f.renameTo(dest) || runCatching { copyRecursive(f, dest); f.deleteRecursively() }.getOrDefault(false)
+            if (ok) { idx[dest.name] = f.absolutePath; count++ }
+        }
+        writeIndex(idx)
+        StorageManager.invalidateCaches()
+        Result.success(count)
+    }
+
+    suspend fun restoreFromRecycle(files: List<File>): Result<Int> = withContext(Dispatchers.IO) {
+        val idx = readIndex()
+        var count = 0
+        for (f in files) {
+            val orig = idx[f.name]?.let { File(it) } ?: File(android.os.Environment.getExternalStorageDirectory(), f.name.substringAfter('_'))
+            orig.parentFile?.mkdirs()
+            val target = if (orig.exists()) File(orig.parentFile, "restaurado_${orig.name}") else orig
+            if (f.renameTo(target) || runCatching { copyRecursive(f, target); f.deleteRecursively() }.getOrDefault(false)) {
+                idx.remove(f.name); count++
+            }
+        }
+        writeIndex(idx)
+        StorageManager.invalidateCaches()
+        Result.success(count)
+    }
+
+    suspend fun emptyRecycle(): Result<Int> = withContext(Dispatchers.IO) {
+        val list = recycleDir.listFiles().orEmpty()
+        list.forEach { it.deleteRecursively() }
+        StorageManager.invalidateCaches()
+        Result.success(list.size)
+    }
+
     suspend fun deleteFiles(files: List<File>): Result<Int> = withContext(Dispatchers.IO) {
         var count = 0
         try {

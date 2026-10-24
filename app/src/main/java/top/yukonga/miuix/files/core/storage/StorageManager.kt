@@ -192,7 +192,9 @@ object StorageManager {
         if (category == FileCategory.RECYCLE_BIN) {
             val trashDir = File(Environment.getExternalStorageDirectory(), ".estrongs/recycle")
             if (!trashDir.exists()) trashDir.mkdirs()
-            return@withContext listFiles(trashDir, showHidden = true).also { cachedCategories[category] = it }
+            return@withContext listFiles(trashDir, showHidden = true, sortOption = SortOption.DATE_DESC)
+                .filter { it.name != ".index" }
+                .also { cachedCategories[category] = it }
         }
 
         // Busca ultra-rápida via MediaStore quando Context está disponível (<15ms em vez de varrer árvore de pastas)

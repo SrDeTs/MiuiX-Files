@@ -98,6 +98,7 @@ fun HomeScreen(
     onTextEditor: () -> Unit = {},
     onNetwork: () -> Unit = {},
     onViewPc: () -> Unit = {},
+    onAnalyzer: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -152,7 +153,7 @@ fun HomeScreen(
                         Modifier.fillMaxWidth(), cornerRadius = 10.dp,
                         insideMargin = PaddingValues(horizontal = 12.dp, vertical = 16.dp),
                         colors = CardDefaults.defaultColors(color = EsCardColor, contentColor = Color.White),
-                        pressFeedbackType = PressFeedbackType.Sink, onClick = onNavigateCleaner
+                        pressFeedbackType = PressFeedbackType.Sink, onClick = onAnalyzer
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Image(painterResource(R.drawable.es_icon_analyse_pie), null, Modifier.size(34.dp))
@@ -227,6 +228,7 @@ fun HomeScreen(
                 onRoot = { drawerOpen = false; onNavigateDir(File("/")) },
                 onCategory = { drawerOpen = false; onNavigateCategory(it) },
                 onCleaner = { drawerOpen = false; onNavigateCleaner() },
+                onAnalyzer = { drawerOpen = false; onAnalyzer() },
                 onApps = { drawerOpen = false; onNavigateAppManager() },
                 onSettings = { drawerOpen = false; onNavigateSettings() }
             )
@@ -310,7 +312,7 @@ private fun RecentGroupBlock(g: RecentGroup, onOpenFile: (File) -> Unit, onNavig
 @Composable
 private fun EsDrawer(
     onClose: () -> Unit, onHome: () -> Unit, onLocal: () -> Unit, onRoot: () -> Unit,
-    onCategory: (FileCategory) -> Unit, onCleaner: () -> Unit, onApps: () -> Unit, onSettings: () -> Unit
+    onCategory: (FileCategory) -> Unit, onCleaner: () -> Unit, onAnalyzer: () -> Unit, onApps: () -> Unit, onSettings: () -> Unit
 ) {
     Column(Modifier.fillMaxHeight().fillMaxWidth(0.8f).background(EsBgColor)) {
         Row(
@@ -343,7 +345,7 @@ private fun EsDrawer(
             )) { (ic, t, c) -> DrawerItem(ic, t) { onCategory(c) } }
             item { DrawerSection("Ferramentas") }
             item { DrawerItem(R.drawable.toolbar_clean, "Cleaner", onCleaner) }
-            item { DrawerItem(R.drawable.toolbar_analyer, "Analis. de espaço", onCleaner) }
+            item { DrawerItem(R.drawable.toolbar_analyer, "Analis. de espaço", onAnalyzer) }
             item { DrawerItem(R.drawable.toolbar_app, "Gerenciador de APPs", onApps) }
         }
         Row(Modifier.fillMaxWidth().navigationBarsPadding().height(60.dp), verticalAlignment = Alignment.CenterVertically) {

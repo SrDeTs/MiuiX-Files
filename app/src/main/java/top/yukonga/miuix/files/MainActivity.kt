@@ -40,6 +40,7 @@ sealed class Screen {
     data object ViewOnPc : Screen()
     data class Network(val title: String) : Screen()
     data object Sender : Screen()
+    data object Analyzer : Screen()
 }
 
 class MainActivity : ComponentActivity() {
@@ -92,9 +93,15 @@ class MainActivity : ComponentActivity() {
                                     onSender = { backStack.add(Screen.Sender) },
                                     onTextEditor = { backStack.add(Screen.TextEditor(null)) },
                                     onNetwork = { backStack.add(Screen.Network("Rede Local (LAN)")) },
-                                    onViewPc = { backStack.add(Screen.ViewOnPc) }
+                                    onViewPc = { backStack.add(Screen.ViewOnPc) },
+                                    onAnalyzer = { backStack.add(Screen.Analyzer) }
                                 )
                             }
+                            is Screen.Analyzer -> AnalyzerScreen(
+                                onBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) },
+                                onOpenDir = { backStack.add(Screen.Explorer(it)) },
+                                onOpenFile = { handleOpen(it) }
+                            )
                             is Screen.Search -> SearchScreen(
                                 onBack = { backStack.removeAt(backStack.size - 1) },
                                 onOpen = { f -> if (f.isDirectory) backStack.add(Screen.Explorer(f.file)) else handleOpen(f.file) }
