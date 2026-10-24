@@ -58,8 +58,14 @@ fun FileGridItem(
         item.extension in setOf("mp3", "flac", "wav", "m4a") -> R.drawable.format_music
         item.extension in setOf("zip", "rar", "7z", "tar") -> R.drawable.format_zip
         item.extension == "pdf" -> R.drawable.format_pdf
-        item.extension in setOf("txt", "log", "json", "xml", "md") -> R.drawable.format_text
-        else -> R.drawable.format_document
+        item.extension in setOf("doc", "docx") -> R.drawable.format_word
+        item.extension in setOf("xls", "xlsx", "csv") -> R.drawable.format_excel
+        item.extension in setOf("ppt", "pptx") -> R.drawable.format_ppt
+        item.extension in setOf("txt", "log", "json", "xml", "md", "ini", "conf", "prop") -> R.drawable.format_text
+        item.extension in setOf("html", "htm") -> R.drawable.format_html
+        item.extension == "epub" -> R.drawable.format_ebook
+        item.extension == "torrent" -> R.drawable.format_torrent
+        else -> R.drawable.format_unkown
     }
 
     val backgroundColor = if (isSelected) {

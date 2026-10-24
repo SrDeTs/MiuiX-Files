@@ -79,8 +79,11 @@ fun iconFor(item: FileItem): Int = when (item.extension.lowercase()) {
     "mp3", "flac", "wav", "m4a" -> R.drawable.format_music
     "zip", "rar", "7z" -> R.drawable.format_zip
     "pdf" -> R.drawable.format_pdf
+    "doc", "docx" -> R.drawable.format_word
+    "xls", "xlsx", "csv" -> R.drawable.format_excel
+    "ppt", "pptx" -> R.drawable.format_ppt
     "txt", "log", "json", "xml", "md" -> R.drawable.format_text
-    else -> if (item.isDirectory) R.drawable.format_folder else R.drawable.format_document
+    else -> if (item.isDirectory) R.drawable.format_folder else R.drawable.format_unkown
 }
 
 @Composable

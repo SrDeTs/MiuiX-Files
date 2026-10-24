@@ -68,6 +68,7 @@ fun ExplorerScreen(
     var showMoreMenu by remember { mutableStateOf(false) }
     var showSelectionMoreDialog by remember { mutableStateOf(false) }
     var showPropertiesDialog by remember { mutableStateOf(false) }
+    var tappedApkFile by remember { mutableStateOf<File?>(null) }
 
     var clipboardState by remember { mutableStateOf(FileOperations.currentClipboard) }
 
@@ -158,7 +159,7 @@ fun ExplorerScreen(
 
                 Spacer(modifier = Modifier.width(6.dp))
 
-                // Tab pill: 📁 Local ✕
+                // Tab pill: Local ✕
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(16.dp))
@@ -167,9 +168,10 @@ fun ExplorerScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Image(
-                        painter = painterResource(R.drawable.format_folder),
+                        painter = painterResource(R.drawable.icon_home_tab_sdcard),
                         contentDescription = null,
-                        modifier = Modifier.size(15.dp)
+                        modifier = Modifier.size(15.dp),
+                        colorFilter = ColorFilter.tint(Color.White)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
@@ -188,22 +190,6 @@ fun ExplorerScreen(
                     ) {
                         Text(text = "✕", fontSize = 11.sp, color = Color(0xFFB0B0B0))
                     }
-                }
-
-                Spacer(modifier = Modifier.weight(1f))
-
-                // Toggle Hidden Files
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable {
-                            showHidden = !showHidden
-                            prefs.edit().putBoolean(MiuiXFilesPreferences.KEY_SHOW_HIDDEN, showHidden).apply()
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(text = if (showHidden) "👁️" else "🙈", fontSize = 16.sp)
                 }
             }
 
@@ -270,6 +256,7 @@ fun ExplorerScreen(
                                         selectedPaths = if (isSelected) selectedPaths - item.path else selectedPaths + item.path
                                     } else {
                                         if (item.isDirectory) currentDir = item.file
+                                        else if (item.extension == "apk") tappedApkFile = item.file
                                         else onOpenFile(item.file)
                                     }
                                 },
@@ -296,6 +283,7 @@ fun ExplorerScreen(
                                         selectedPaths = if (isSelected) selectedPaths - item.path else selectedPaths + item.path
                                     } else {
                                         if (item.isDirectory) currentDir = item.file
+                                        else if (item.extension == "apk") tappedApkFile = item.file
                                         else onOpenFile(item.file)
                                     }
                                 },
@@ -393,6 +381,16 @@ fun ExplorerScreen(
                         }
                     }
                 }
+            }
+            if (tappedApkFile != null) {
+                EsApkPropertiesDialog(
+                    apkFile = tappedApkFile!!,
+                    onDismiss = { tappedApkFile = null },
+                    onViewContent = { file ->
+                        tappedApkFile = null
+                        onOpenFile(file)
+                    }
+                )
             }
         }
     }

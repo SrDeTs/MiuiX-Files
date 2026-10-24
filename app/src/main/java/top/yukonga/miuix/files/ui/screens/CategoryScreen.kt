@@ -28,6 +28,7 @@ import top.yukonga.miuix.files.core.model.FileCategory
 import top.yukonga.miuix.files.core.model.FileItem
 import top.yukonga.miuix.files.core.model.SortOption
 import top.yukonga.miuix.files.core.storage.StorageManager
+import top.yukonga.miuix.files.ui.components.EsApkPropertiesDialog
 import top.yukonga.miuix.files.ui.components.FileGridItem
 import top.yukonga.miuix.files.ui.components.FileListItem
 import top.yukonga.miuix.kmp.basic.Text
@@ -68,6 +69,7 @@ fun CategoryScreen(
     var selectedPaths by remember(category) { mutableStateOf<Set<String>>(emptySet()) }
     val isSelectionMode = selectedPaths.isNotEmpty()
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var tappedApkFile by remember { mutableStateOf<File?>(null) }
 
     androidx.activity.compose.BackHandler(enabled = isSelectionMode) {
         selectedPaths = emptySet()
@@ -285,6 +287,8 @@ fun CategoryScreen(
                                 onClick = {
                                     if (isSelectionMode) {
                                         selectedPaths = if (isSelected) selectedPaths - item.path else selectedPaths + item.path
+                                    } else if (item.extension == "apk") {
+                                        tappedApkFile = item.file
                                     } else {
                                         onOpenFile(item.file)
                                     }
@@ -309,6 +313,8 @@ fun CategoryScreen(
                                 onClick = {
                                     if (isSelectionMode) {
                                         selectedPaths = if (isSelected) selectedPaths - item.path else selectedPaths + item.path
+                                    } else if (item.extension == "apk") {
+                                        tappedApkFile = item.file
                                     } else {
                                         onOpenFile(item.file)
                                     }
@@ -447,6 +453,17 @@ fun CategoryScreen(
                         )
                     }
                 }
+            }
+        )
+    }
+
+    if (tappedApkFile != null) {
+        EsApkPropertiesDialog(
+            apkFile = tappedApkFile!!,
+            onDismiss = { tappedApkFile = null },
+            onViewContent = { file ->
+                tappedApkFile = null
+                onOpenFile(file)
             }
         )
     }

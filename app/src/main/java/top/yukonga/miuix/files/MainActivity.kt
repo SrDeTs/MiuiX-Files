@@ -73,7 +73,7 @@ class MainActivity : ComponentActivity() {
                                 ext in textExts -> backStack.add(Screen.TextEditor(file))
                                 ext in imgExts -> backStack.add(Screen.ImageViewer(file))
                                 ext in audioExts -> backStack.add(Screen.AudioPlayer(file))
-                                ext == "zip" -> backStack.add(Screen.ZipViewer(file))
+                                ext == "zip" || ext == "apk" -> backStack.add(Screen.ZipViewer(file))
                                 else -> openFile(file)
                             }
                         }
