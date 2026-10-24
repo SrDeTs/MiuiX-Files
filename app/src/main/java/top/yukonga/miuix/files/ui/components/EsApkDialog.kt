@@ -110,8 +110,8 @@ fun EsApkPropertiesDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(4.dp))
-                .background(Color.White)
+                .clip(RoundedCornerShape(12.dp))
+                .background(EsCardColor)
                 .padding(horizontal = 22.dp, vertical = 20.dp)
         ) {
             // Title: Propriedades
@@ -119,7 +119,7 @@ fun EsApkPropertiesDialog(
                 text = "Propriedades",
                 fontSize = 19.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF212121)
+                color = Color.White
             )
 
             Spacer(modifier = Modifier.height(18.dp))
@@ -147,7 +147,7 @@ fun EsApkPropertiesDialog(
                 Text(
                     text = apkFile.nameWithoutExtension,
                     fontSize = 15.sp,
-                    color = Color(0xFF616161),
+                    color = Color(0xFFE6E6E6),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
@@ -156,12 +156,12 @@ fun EsApkPropertiesDialog(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Thin light gray divider
+            // Thin dark divider
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(Color(0xFFEEEEEE))
+                    .background(Color(0xFF3E4247))
             )
 
             Spacer(modifier = Modifier.height(14.dp))
@@ -186,7 +186,7 @@ fun EsApkPropertiesDialog(
                     .fillMaxWidth()
                     .height(44.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFF1576D2))
+                    .background(Color(0xFF2F7DF6))
                     .pressable(interactionSource = btnInteraction, indication = SinkFeedback())
                     .clickable(interactionSource = btnInteraction, indication = null) {
                         onViewContent(apkFile)
@@ -213,7 +213,7 @@ fun EsApkPropertiesDialog(
                     text = "GOOGLE PLAY",
                     fontSize = 13.5.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color(0xFF1576D2),
+                    color = Color(0xFF3FE0F0),
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
                         .clickable {
@@ -234,7 +234,7 @@ fun EsApkPropertiesDialog(
                     text = "CANCELAR",
                     fontSize = 13.5.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color(0xFF1576D2),
+                    color = Color(0xFF3FE0F0),
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
                         .clickable(onClick = onDismiss)
@@ -245,7 +245,7 @@ fun EsApkPropertiesDialog(
                     text = "INSTALAR",
                     fontSize = 13.5.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color(0xFF1576D2),
+                    color = Color(0xFF3FE0F0),
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
                         .clickable {
@@ -279,13 +279,13 @@ private fun ApkDetailRow(label: String, value: String) {
         Text(
             text = label,
             fontSize = 13.sp,
-            color = Color(0xFF757575),
+            color = Color(0xFFA0A3A6),
             modifier = Modifier.width(114.dp)
         )
         Text(
             text = value,
             fontSize = 13.sp,
-            color = Color(0xFF616161),
+            color = Color(0xFFE6E6E6),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
