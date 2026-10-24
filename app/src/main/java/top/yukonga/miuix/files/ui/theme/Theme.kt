@@ -38,7 +38,7 @@ fun MiuiXFilesTheme(
         1 -> ColorSchemeMode.Light
         2 -> ColorSchemeMode.Dark
         3 -> if (Build.VERSION.SDK_INT >= 31) ColorSchemeMode.MonetDark else ColorSchemeMode.Dark
-        else -> if (Build.VERSION.SDK_INT >= 31) ColorSchemeMode.MonetSystem else ColorSchemeMode.System
+        else -> ColorSchemeMode.Dark
     }
 
     val controller = remember(mode) { ThemeController(mode) }

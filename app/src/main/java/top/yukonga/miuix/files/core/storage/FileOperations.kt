@@ -121,6 +121,7 @@ object FileOperations {
                 }
                 count++
             }
+            StorageManager.invalidateCaches()
             Result.success(count)
         } catch (e: Exception) {
             Result.failure(e)

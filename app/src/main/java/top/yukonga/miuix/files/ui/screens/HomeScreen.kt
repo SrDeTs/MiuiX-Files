@@ -31,6 +31,7 @@ import top.yukonga.miuix.files.core.model.StorageVolumeInfo
 import top.yukonga.miuix.files.core.storage.StorageManager
 import top.yukonga.miuix.files.ui.components.*
 import top.yukonga.miuix.kmp.anim.folmeSpring
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Text
@@ -241,20 +242,31 @@ fun HomeScreen(
     }
 
     if (showNew) {
-        OverlayDialog(show = showNew, title = "Nova pasta", onDismissRequest = { showNew = false }) {
-            TextField(value = newName, onValueChange = { newName = it }, label = "Nome", modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(16.dp))
-            Row(Modifier.fillMaxWidth()) {
+        OverlayDialog(show = showNew, title = "Nova Pasta", onDismissRequest = { showNew = false }) {
+            TextField(
+                value = newName,
+                onValueChange = { newName = it },
+                label = "Digite o nome da pasta",
+                useLabelAsPlaceholder = true,
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(20.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TextButton(text = "Cancelar", onClick = { showNew = false }, modifier = Modifier.weight(1f))
-                Spacer(Modifier.width(12.dp))
-                TextButton(text = "Criar", onClick = {
-                    val root = volumes.firstOrNull()?.path
-                    if (root != null && newName.isNotBlank()) {
-                        val d = File(root, newName.trim())
-                        if (d.exists() || d.mkdirs()) onNavigateDir(d)
-                    }
-                    showNew = false
-                }, modifier = Modifier.weight(1f))
+                TextButton(
+                    text = "Criar",
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    onClick = {
+                        val root = volumes.firstOrNull()?.path
+                        if (root != null && newName.isNotBlank()) {
+                            val d = File(root, newName.trim())
+                            if (d.exists() || d.mkdirs()) onNavigateDir(d)
+                        }
+                        showNew = false
+                    },
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }

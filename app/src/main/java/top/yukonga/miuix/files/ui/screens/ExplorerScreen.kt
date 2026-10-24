@@ -218,8 +218,21 @@ fun ExplorerScreen(
                                 (slideOutHorizontally(animationSpec = folmeSpring(damping = 0.9f, response = 0.24f)) { (-it * 0.14f * sign).toInt() } +
                                     fadeOut(animationSpec = folmeSpring(damping = 0.9f, response = 0.2f)))
                         } else {
-                            fadeIn(animationSpec = folmeSpring(damping = 0.9f, response = 0.25f)) togetherWith
-                                fadeOut(animationSpec = folmeSpring(damping = 0.9f, response = 0.2f))
+                            // Grid <-> List view switch: authentic MIUIX Folme spring zoom + fade transition
+                            val toGrid = targetState.second
+                            val inScale = if (toGrid) 0.90f else 1.08f
+                            val outScale = if (toGrid) 1.06f else 0.92f
+                            (scaleIn(
+                                initialScale = inScale,
+                                animationSpec = folmeSpring(damping = 0.82f, response = 0.32f)
+                            ) + fadeIn(
+                                animationSpec = folmeSpring(damping = 0.9f, response = 0.24f)
+                            )) togetherWith (scaleOut(
+                                targetScale = outScale,
+                                animationSpec = folmeSpring(damping = 0.9f, response = 0.22f)
+                            ) + fadeOut(
+                                animationSpec = folmeSpring(damping = 0.9f, response = 0.18f)
+                            ))
                         }
                     },
                     label = "explorer_dir_transition"
@@ -248,7 +261,9 @@ fun ExplorerScreen(
                                     isSelected = isSelected,
                                     isSelectionMode = isSelectionMode,
                                     modifier = Modifier.animateItem(
-                                        placementSpec = folmeSpring(damping = 0.85f, response = 0.30f, visibilityThreshold = IntOffset(1, 1))
+                                        fadeInSpec = folmeSpring(damping = 0.9f, response = 0.25f),
+                                        placementSpec = folmeSpring(damping = 0.84f, response = 0.30f, visibilityThreshold = IntOffset(1, 1)),
+                                        fadeOutSpec = folmeSpring(damping = 0.9f, response = 0.20f)
                                     ),
                                     onClick = {
                                         if (isSelectionMode) {
@@ -278,7 +293,9 @@ fun ExplorerScreen(
                                     isSelected = isSelected,
                                     isSelectionMode = isSelectionMode,
                                     modifier = Modifier.animateItem(
-                                        placementSpec = folmeSpring(damping = 0.85f, response = 0.30f, visibilityThreshold = IntOffset(1, 1))
+                                        fadeInSpec = folmeSpring(damping = 0.9f, response = 0.25f),
+                                        placementSpec = folmeSpring(damping = 0.84f, response = 0.30f, visibilityThreshold = IntOffset(1, 1)),
+                                        fadeOutSpec = folmeSpring(damping = 0.9f, response = 0.20f)
                                     ),
                                     onClick = {
                                         if (isSelectionMode) {
@@ -429,33 +446,38 @@ fun ExplorerScreen(
             onDismissRequest = { showNewFolderDialog = false },
             title = "Nova Pasta",
             content = {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    TextField(
-                        value = newFolderName,
-                        onValueChange = { newFolderName = it },
-                        modifier = Modifier.fillMaxWidth()
+                TextField(
+                    value = newFolderName,
+                    onValueChange = { newFolderName = it },
+                    label = "Digite o nome da pasta",
+                    useLabelAsPlaceholder = true,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(20.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    TextButton(
+                        text = "Cancelar",
+                        onClick = { showNewFolderDialog = false },
+                        modifier = Modifier.weight(1f)
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        TextButton(text = "Cancelar", onClick = { showNewFolderDialog = false })
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Button(
-                            onClick = {
-                                if (newFolderName.isNotBlank()) {
-                                    scope.launch {
-                                        FileOperations.createDirectory(currentDir, newFolderName.trim())
-                                        showNewFolderDialog = false
-                                        refreshFiles()
-                                    }
+                    TextButton(
+                        text = "Criar",
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                        onClick = {
+                            if (newFolderName.isNotBlank()) {
+                                scope.launch {
+                                    FileOperations.createDirectory(currentDir, newFolderName.trim())
+                                    showNewFolderDialog = false
+                                    refreshFiles()
                                 }
                             }
-                        ) {
-                            Text("Criar")
-                        }
-                    }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         )
@@ -468,71 +490,115 @@ fun ExplorerScreen(
             onDismissRequest = { showRenameDialog = false },
             title = "Renomear",
             content = {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    TextField(
-                        value = renameFileName,
-                        onValueChange = { renameFileName = it },
-                        modifier = Modifier.fillMaxWidth()
+                TextField(
+                    value = renameFileName,
+                    onValueChange = { renameFileName = it },
+                    label = "Novo nome",
+                    useLabelAsPlaceholder = true,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(20.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    TextButton(
+                        text = "Cancelar",
+                        onClick = { showRenameDialog = false },
+                        modifier = Modifier.weight(1f)
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        TextButton(text = "Cancelar", onClick = { showRenameDialog = false })
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Button(
-                            onClick = {
-                                val selected = files.firstOrNull { selectedPaths.contains(it.path) }
-                                if (selected != null && renameFileName.isNotBlank()) {
-                                    scope.launch {
-                                        FileOperations.rename(selected.file, renameFileName.trim())
-                                        showRenameDialog = false
-                                        refreshFiles()
-                                    }
+                    TextButton(
+                        text = "Salvar",
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                        onClick = {
+                            val selected = files.firstOrNull { selectedPaths.contains(it.path) }
+                            if (selected != null && renameFileName.isNotBlank()) {
+                                scope.launch {
+                                    FileOperations.rename(selected.file, renameFileName.trim())
+                                    showRenameDialog = false
+                                    refreshFiles()
                                 }
                             }
-                        ) {
-                            Text("Salvar")
-                        }
-                    }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         )
     }
 
-    // Delete Confirmation Dialog
+    // Delete Confirmation Dialog (1:1 ES File Explorer with "Mover para a Reciclagem" checkbox vs direct permanent deletion)
     if (showDeleteDialog) {
+        var moveToRecycleBin by remember { mutableStateOf(true) }
         OverlayDialog(
             show = showDeleteDialog,
             onDismissRequest = { showDeleteDialog = false },
-            title = "Excluir Arquivos",
+            title = "Excluir",
+            summary = if (moveToRecycleBin) {
+                "Mover ${selectedPaths.size} item(ns) selecionado(s) para a Reciclagem?"
+            } else {
+                "Tem certeza de que deseja excluir permanentemente ${selectedPaths.size} item(ns)?"
+            },
             content = {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Mover ${selectedPaths.size} item(ns) para a Lixeira?",
-                        color = Color.White
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { moveToRecycleBin = !moveToRecycleBin }
+                        .padding(horizontal = 8.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        state = if (moveToRecycleBin) androidx.compose.ui.state.ToggleableState.On else androidx.compose.ui.state.ToggleableState.Off,
+                        onClick = { moveToRecycleBin = !moveToRecycleBin }
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        TextButton(text = "Cancelar", onClick = { showDeleteDialog = false })
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Button(
-                            onClick = {
-                                scope.launch {
-                                    val filesToDelete = files.filter { selectedPaths.contains(it.path) }.map { it.file }
-                                    FileOperations.moveToRecycle(filesToDelete)
-                                    showDeleteDialog = false
-                                    refreshFiles()
-                                }
-                            }
-                        ) {
-                            Text("Excluir")
-                        }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Mover para a Reciclagem",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White
+                        )
+                        Text(
+                            text = if (moveToRecycleBin) "Pode ser restaurado depois" else "Desmarcado: exclusão direta e permanente",
+                            fontSize = 11.5.sp,
+                            color = if (moveToRecycleBin) Color(0xFFB0B3B8) else Color(0xFFFF6B6B)
+                        )
                     }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    TextButton(
+                        text = "Cancelar",
+                        onClick = { showDeleteDialog = false },
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(
+                        text = if (moveToRecycleBin) "Mover" else "Excluir",
+                        colors = ButtonDefaults.textButtonColorsPrimary(
+                            color = if (moveToRecycleBin) Color(0xFF2F7DF6) else Color(0xFFE53935),
+                            textColor = Color.White
+                        ),
+                        onClick = {
+                            val toDelete = moveToRecycleBin
+                            scope.launch {
+                                val filesToDelete = files.filter { selectedPaths.contains(it.path) }.map { it.file }
+                                if (toDelete) {
+                                    FileOperations.moveToRecycle(filesToDelete)
+                                } else {
+                                    FileOperations.deleteFiles(filesToDelete)
+                                }
+                                showDeleteDialog = false
+                                refreshFiles()
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         )
@@ -544,7 +610,7 @@ fun ExplorerScreen(
             onDismissRequest = { showMoreMenu = false },
             title = "Opções e Ordenação",
             content = {
-                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(
                         text = "Ordenar por Nome (A-Z)",
                         onClick = { currentSort = SortOption.NAME_ASC; showMoreMenu = false },
@@ -583,6 +649,13 @@ fun ExplorerScreen(
                         },
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(
+                        text = "Fechar",
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                        onClick = { showMoreMenu = false },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
         )
@@ -597,7 +670,7 @@ fun ExplorerScreen(
             onDismissRequest = { showSelectionMoreDialog = false },
             title = "Ações (${selectedFiles.size})",
             content = {
-                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(
                         text = "Compactar em .ZIP",
                         onClick = {
@@ -649,6 +722,13 @@ fun ExplorerScreen(
                         },
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(
+                        text = "Cancelar",
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                        onClick = { showSelectionMoreDialog = false },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
         )
@@ -682,9 +762,9 @@ fun ExplorerScreen(
             onDismissRequest = { showPropertiesDialog = false },
             title = "Propriedades",
             content = {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (first != null) {
-                        Text("Nome: ${first.name}", fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Nome: ${first.name}", fontSize = 13.5.sp, color = Color.White, fontWeight = FontWeight.Bold)
                         Text("Caminho: ${first.absolutePath}", fontSize = 12.sp, color = Color(0xFFB0B3B8))
                         Text("Tipo: ${if (first.isDirectory) "Pasta" else "Arquivo (.${first.extension})"}", fontSize = 12.sp, color = Color(0xFFB0B3B8))
                         Text("Tamanho: ${StorageManager.formatFileSize(selectedFiles.sumOf { if (it.isDirectory) 0L else it.length() })}", fontSize = 12.sp, color = Color(0xFFB0B3B8))
@@ -694,8 +774,13 @@ fun ExplorerScreen(
                             Text("MD5: $md5", fontSize = 11.5.sp, color = Color(0xFF3FE0F0))
                         }
                     }
-                    Spacer(Modifier.height(10.dp))
-                    TextButton(text = "Fechar", onClick = { showPropertiesDialog = false }, modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(12.dp))
+                    TextButton(
+                        text = "Fechar",
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                        onClick = { showPropertiesDialog = false },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
         )

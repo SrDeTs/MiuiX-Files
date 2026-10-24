@@ -164,7 +164,7 @@ fun AppManagerScreen(
             onDismissRequest = { selectedApp = null },
             title = app.appName,
             content = {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
                         text = "Pacote: ${app.packageName}",
                         fontSize = 13.sp,
@@ -182,7 +182,7 @@ fun AppManagerScreen(
                     )
 
                     if (backupStatusMessage != null) {
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = backupStatusMessage!!,
                             fontSize = 13.sp,
@@ -190,13 +190,14 @@ fun AppManagerScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Button(
+                        TextButton(
+                            text = "Backup APK",
                             onClick = {
                                 scope.launch {
                                     val res = AppManager.backupApp(context, app)
@@ -208,25 +209,27 @@ fun AppManagerScreen(
                                 }
                             },
                             modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Backup APK")
-                        }
+                        )
 
-                        Button(
+                        TextButton(
+                            text = "Abrir",
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
                             onClick = {
                                 AppManager.launchApp(context, app.packageName)
                                 selectedApp = null
                             },
                             modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Abrir")
-                        }
+                        )
                     }
 
                     if (!app.isSystemApp) {
                         Spacer(modifier = Modifier.height(8.dp))
                         TextButton(
                             text = "Desinstalar",
+                            colors = ButtonDefaults.textButtonColorsPrimary(
+                                color = androidx.compose.ui.graphics.Color(0xFFE53935),
+                                textColor = androidx.compose.ui.graphics.Color.White
+                            ),
                             onClick = {
                                 AppManager.uninstallApp(context, app.packageName)
                                 selectedApp = null

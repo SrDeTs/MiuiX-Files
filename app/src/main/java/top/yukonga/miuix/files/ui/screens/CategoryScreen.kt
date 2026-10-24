@@ -39,6 +39,8 @@ import top.yukonga.miuix.files.ui.components.FileGridItem
 import top.yukonga.miuix.files.ui.components.FileListItem
 import top.yukonga.miuix.files.ui.components.InlineTransferProgressStrip
 import top.yukonga.miuix.kmp.anim.folmeSpring
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
@@ -202,7 +204,7 @@ fun CategoryScreen(
                 }
             }
 
-            // Main Content Grid or List
+            // Main Content Grid or List with MIUIX Folme spring transitions
             Box(modifier = Modifier.weight(1f)) {
                 if (isLoading) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -220,65 +222,92 @@ fun CategoryScreen(
                             color = Color(0xFF9E9E9E)
                         )
                     }
-                } else if (isGridView) {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
-                        modifier = Modifier.fillMaxSize().overScrollVertical(),
-                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        items(displayFiles, key = { it.path }) { item ->
-                            val isSelected = selectedPaths.contains(item.path)
-                            FileGridItem(
-                                item = item,
-                                isSelected = isSelected,
-                                isSelectionMode = isSelectionMode,
-                                modifier = Modifier.animateItem(
-                                    placementSpec = folmeSpring(damping = 0.85f, response = 0.30f, visibilityThreshold = IntOffset(1, 1))
-                                ),
-                                onClick = {
-                                    if (isSelectionMode) {
-                                        selectedPaths = if (isSelected) selectedPaths - item.path else selectedPaths + item.path
-                                    } else if (item.extension == "apk") {
-                                        tappedApkFile = item.file
-                                    } else {
-                                        onOpenFile(item.file)
-                                    }
-                                },
-                                onLongClick = {
-                                    if (!isSelectionMode) selectedPaths = setOf(item.path)
-                                }
-                            )
-                        }
-                    }
                 } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize().overScrollVertical(),
-                        contentPadding = PaddingValues(bottom = 12.dp)
-                    ) {
-                        items(displayFiles, key = { it.path }) { item ->
-                            val isSelected = selectedPaths.contains(item.path)
-                            FileListItem(
-                                item = item,
-                                isSelected = isSelected,
-                                isSelectionMode = isSelectionMode,
-                                modifier = Modifier.animateItem(
-                                    placementSpec = folmeSpring(damping = 0.85f, response = 0.30f, visibilityThreshold = IntOffset(1, 1))
-                                ),
-                                onClick = {
-                                    if (isSelectionMode) {
-                                        selectedPaths = if (isSelected) selectedPaths - item.path else selectedPaths + item.path
-                                    } else if (item.extension == "apk") {
-                                        tappedApkFile = item.file
-                                    } else {
-                                        onOpenFile(item.file)
-                                    }
-                                },
-                                onLongClick = {
-                                    if (!isSelectionMode) selectedPaths = setOf(item.path)
+                    AnimatedContent(
+                        targetState = isGridView,
+                        transitionSpec = {
+                            val toGrid = targetState
+                            val inScale = if (toGrid) 0.90f else 1.08f
+                            val outScale = if (toGrid) 1.06f else 0.92f
+                            (scaleIn(
+                                initialScale = inScale,
+                                animationSpec = folmeSpring(damping = 0.82f, response = 0.32f)
+                            ) + fadeIn(
+                                animationSpec = folmeSpring(damping = 0.9f, response = 0.24f)
+                            )) togetherWith (scaleOut(
+                                targetScale = outScale,
+                                animationSpec = folmeSpring(damping = 0.9f, response = 0.22f)
+                            ) + fadeOut(
+                                animationSpec = folmeSpring(damping = 0.9f, response = 0.18f)
+                            ))
+                        },
+                        label = "category_view_mode_transition"
+                    ) { gridMode ->
+                        if (gridMode) {
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(4),
+                                modifier = Modifier.fillMaxSize().overScrollVertical(),
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                items(displayFiles, key = { it.path }) { item ->
+                                    val isSelected = selectedPaths.contains(item.path)
+                                    FileGridItem(
+                                        item = item,
+                                        isSelected = isSelected,
+                                        isSelectionMode = isSelectionMode,
+                                        modifier = Modifier.animateItem(
+                                            fadeInSpec = folmeSpring(damping = 0.9f, response = 0.25f),
+                                            placementSpec = folmeSpring(damping = 0.84f, response = 0.30f, visibilityThreshold = IntOffset(1, 1)),
+                                            fadeOutSpec = folmeSpring(damping = 0.9f, response = 0.20f)
+                                        ),
+                                        onClick = {
+                                            if (isSelectionMode) {
+                                                selectedPaths = if (isSelected) selectedPaths - item.path else selectedPaths + item.path
+                                            } else if (item.extension == "apk") {
+                                                tappedApkFile = item.file
+                                            } else {
+                                                onOpenFile(item.file)
+                                            }
+                                        },
+                                        onLongClick = {
+                                            if (!isSelectionMode) selectedPaths = setOf(item.path)
+                                        }
+                                    )
                                 }
-                            )
+                            }
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize().overScrollVertical(),
+                                contentPadding = PaddingValues(bottom = 12.dp)
+                            ) {
+                                items(displayFiles, key = { it.path }) { item ->
+                                    val isSelected = selectedPaths.contains(item.path)
+                                    FileListItem(
+                                        item = item,
+                                        isSelected = isSelected,
+                                        isSelectionMode = isSelectionMode,
+                                        modifier = Modifier.animateItem(
+                                            fadeInSpec = folmeSpring(damping = 0.9f, response = 0.25f),
+                                            placementSpec = folmeSpring(damping = 0.84f, response = 0.30f, visibilityThreshold = IntOffset(1, 1)),
+                                            fadeOutSpec = folmeSpring(damping = 0.9f, response = 0.20f)
+                                        ),
+                                        onClick = {
+                                            if (isSelectionMode) {
+                                                selectedPaths = if (isSelected) selectedPaths - item.path else selectedPaths + item.path
+                                            } else if (item.extension == "apk") {
+                                                tappedApkFile = item.file
+                                            } else {
+                                                onOpenFile(item.file)
+                                            }
+                                        },
+                                        onLongClick = {
+                                            if (!isSelectionMode) selectedPaths = setOf(item.path)
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -390,33 +419,81 @@ fun CategoryScreen(
     }
 
     if (showDeleteDialog) {
+        val isRecycleCategory = category == FileCategory.RECYCLE_BIN
+        var moveToRecycleBin by remember(isRecycleCategory) { mutableStateOf(!isRecycleCategory) }
         OverlayDialog(
             show = showDeleteDialog,
             onDismissRequest = { showDeleteDialog = false },
             title = "Excluir (${selectedPaths.size})",
+            summary = if (moveToRecycleBin && !isRecycleCategory) {
+                "Mover ${selectedPaths.size} arquivo(s) para a Reciclagem?"
+            } else {
+                "Tem certeza de que deseja excluir permanentemente ${selectedPaths.size} arquivo(s)?"
+            },
             content = {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        if (category == FileCategory.RECYCLE_BIN) "Excluir ${selectedPaths.size} arquivo(s) permanentemente?"
-                        else "Mover ${selectedPaths.size} arquivo(s) para a Lixeira?",
-                        color = Color.White, fontSize = 13.5.sp
-                    )
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton(text = "Cancelar", onClick = { showDeleteDialog = false })
-                        Spacer(Modifier.width(8.dp))
-                        TextButton(
-                            text = "Excluir",
-                            onClick = {
-                                val toDel = files.filter { selectedPaths.contains(it.path) }.map { it.file }
-                                showDeleteDialog = false
-                                scope.launch {
-                                    top.yukonga.miuix.files.core.storage.FileOperations.moveToRecycle(toDel)
-                                    selectedPaths = emptySet()
-                                    files = StorageManager.getCategoryFiles(category, context = context, forceRefresh = true)
-                                }
-                            }
+                if (!isRecycleCategory) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { moveToRecycleBin = !moveToRecycleBin }
+                            .padding(horizontal = 8.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            state = if (moveToRecycleBin) androidx.compose.ui.state.ToggleableState.On else androidx.compose.ui.state.ToggleableState.Off,
+                            onClick = { moveToRecycleBin = !moveToRecycleBin }
                         )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Mover para a Reciclagem",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.White
+                            )
+                            Text(
+                                text = if (moveToRecycleBin) "Pode ser restaurado depois" else "Desmarcado: exclusão direta e permanente",
+                                fontSize = 11.5.sp,
+                                color = if (moveToRecycleBin) Color(0xFFB0B3B8) else Color(0xFFFF6B6B)
+                            )
+                        }
                     }
+                    Spacer(modifier = Modifier.height(16.dp))
+                } else {
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    TextButton(
+                        text = "Cancelar",
+                        onClick = { showDeleteDialog = false },
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(
+                        text = if (moveToRecycleBin && !isRecycleCategory) "Mover" else "Excluir",
+                        colors = ButtonDefaults.textButtonColorsPrimary(
+                            color = if (moveToRecycleBin && !isRecycleCategory) Color(0xFF2F7DF6) else Color(0xFFE53935),
+                            textColor = Color.White
+                        ),
+                        onClick = {
+                            val toDel = files.filter { selectedPaths.contains(it.path) }.map { it.file }
+                            val useRecycle = moveToRecycleBin && !isRecycleCategory
+                            showDeleteDialog = false
+                            scope.launch {
+                                if (useRecycle) {
+                                    top.yukonga.miuix.files.core.storage.FileOperations.moveToRecycle(toDel)
+                                } else {
+                                    top.yukonga.miuix.files.core.storage.FileOperations.deleteFiles(toDel)
+                                }
+                                selectedPaths = emptySet()
+                                files = StorageManager.getCategoryFiles(category, context = context, forceRefresh = true)
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         )
@@ -439,7 +516,7 @@ fun CategoryScreen(
             onDismissRequest = { showMoreMenu = false },
             title = "Ordenar ${category.label}",
             content = {
-                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(
                         text = "Ordenar por Data (Mais recente)",
                         onClick = { currentSort = SortOption.DATE_DESC; showMoreMenu = false },
@@ -458,6 +535,13 @@ fun CategoryScreen(
                     TextButton(
                         text = "Ordenar por Tamanho (Maior)",
                         onClick = { currentSort = SortOption.SIZE_DESC; showMoreMenu = false },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(
+                        text = "Fechar",
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                        onClick = { showMoreMenu = false },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
