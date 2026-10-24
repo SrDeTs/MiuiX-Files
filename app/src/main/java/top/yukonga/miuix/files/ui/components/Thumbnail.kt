@@ -26,7 +26,75 @@ private val thumbCache = LruCache<String, ImageBitmap>(350)
 private val imageExt = setOf("jpg", "jpeg", "png", "webp", "gif", "bmp", "heic")
 private val videoExt = setOf("mp4", "mkv", "avi", "mov", "3gp", "webm")
 
+private val knownAppFolders = mapOf(
+    "mt2" to "bin.mt.plus",
+    "whatsapp" to "com.whatsapp",
+    "telegram" to "org.telegram.messenger",
+    "nekogram" to "tw.nekomimi.nekogram",
+    "shizuku" to "moe.shizuku.privileged.api",
+    "termux" to "com.termux",
+    "swiftbackup" to "org.swiftapps.swiftbackup"
+)
+
 fun isMediaFile(f: File) = f.extension.lowercase().let { it in imageExt || it in videoExt || it == "apk" }
+
+fun loadFolderAppBitmap(context: Context, folder: File): ImageBitmap? {
+    val nameLower = folder.name.lowercase()
+    val key = "folder_app:$nameLower"
+    thumbCache.get(key)?.let { return it }
+
+    // 1. Check built-in map or SQLite /sdcard/.estrongs/folder_app.db
+    var pkgName: String? = knownAppFolders[nameLower]
+    if (pkgName == null) {
+        val dbFile = File("/sdcard/.estrongs/folder_app.db")
+        if (dbFile.exists() && dbFile.canRead()) {
+            runCatching {
+                android.database.sqlite.SQLiteDatabase.openDatabase(
+                    dbFile.absolutePath,
+                    null,
+                    android.database.sqlite.SQLiteDatabase.OPEN_READONLY
+                ).use { db ->
+                    db.rawQuery(
+                        "SELECT package_name FROM app_folder_map WHERE lower(folder) = ? ORDER BY select_rate DESC LIMIT 1",
+                        arrayOf("/$nameLower")
+                    ).use { c ->
+                        if (c.moveToFirst()) pkgName = c.getString(0)
+                    }
+                }
+            }
+        }
+    }
+    val pkg = pkgName ?: return null
+
+    // 2. Check /sdcard/.estrongs/.app_icon_back/<pkg>.png first (if app is installed or backed up)
+    val pm = context.packageManager
+    val isInstalled = runCatching {
+        @Suppress("DEPRECATION")
+        pm.getPackageInfo(pkg, 0) != null
+    }.getOrDefault(false)
+
+    val cachedIconFile = File("/sdcard/.estrongs/.app_icon_back/$pkg.png")
+    if (cachedIconFile.exists() && cachedIconFile.canRead()) {
+        runCatching {
+            BitmapFactory.decodeFile(cachedIconFile.absolutePath)?.asImageBitmap()?.also {
+                thumbCache.put(key, it)
+                return it
+            }
+        }
+    }
+
+    if (!isInstalled) return null
+    return runCatching {
+        val drawable = pm.getApplicationIcon(pkg)
+        val w = drawable.intrinsicWidth.coerceIn(96, 192)
+        val h = drawable.intrinsicHeight.coerceIn(96, 192)
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        drawable.setBounds(0, 0, w, h)
+        drawable.draw(canvas)
+        bmp.asImageBitmap().also { thumbCache.put(key, it) }
+    }.getOrNull()
+}
 
 fun loadApkIconBitmap(context: Context, apkFile: File): ImageBitmap? {
     val key = "apk_icon:${apkFile.path}"

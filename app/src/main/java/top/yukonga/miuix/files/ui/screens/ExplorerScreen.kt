@@ -100,9 +100,21 @@ fun ExplorerScreen(
         }
     }
 
-    val displayFiles = remember(files, searchQuery) {
-        if (searchQuery.isBlank()) files
+    val displayFiles = remember(files, searchQuery, currentDir, currentSort) {
+        val base = if (searchQuery.isBlank()) files
         else files.filter { it.name.contains(searchQuery, ignoreCase = true) }
+
+        if (currentSort == SortOption.NAME_ASC && (currentDir.name == "0" || currentDir.absolutePath == "/sdcard")) {
+            val pinned = listOf("dcim", "download")
+            val dirs = base.filter { it.isDirectory }
+            val nonDirs = base.filter { !it.isDirectory }
+            val pinnedDirs = dirs.filter { it.name.lowercase() in pinned }
+                .sortedBy { pinned.indexOf(it.name.lowercase()) }
+            val otherDirs = dirs.filter { it.name.lowercase() !in pinned }
+            pinnedDirs + otherDirs + nonDirs
+        } else {
+            base
+        }
     }
 
     Box(
@@ -241,9 +253,9 @@ fun ExplorerScreen(
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(4),
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         items(displayFiles, key = { it.path }) { item ->
                             val isSelected = selectedPaths.contains(item.path)

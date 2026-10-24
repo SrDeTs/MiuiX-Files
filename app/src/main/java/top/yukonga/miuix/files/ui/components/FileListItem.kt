@@ -5,17 +5,22 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import top.yukonga.miuix.files.R
 import top.yukonga.miuix.files.core.model.FileItem
 import top.yukonga.miuix.files.core.storage.StorageManager
@@ -32,6 +37,17 @@ fun FileListItem(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val folderBadgeIcon: Int? = if (item.isDirectory) getEsFolderBadgeRes(item.name) else null
+    var folderAppIcon by remember(item.path) { mutableStateOf<ImageBitmap?>(null) }
+
+    LaunchedEffect(item.path) {
+        if (item.isDirectory && folderBadgeIcon == null) {
+            folderAppIcon = withContext(Dispatchers.IO) {
+                loadFolderAppBitmap(context, item.file)
+            }
+        }
+    }
     val iconRes = when {
         item.isDirectory -> R.drawable.format_folder
         item.extension == "apk" -> R.drawable.format_apk
@@ -69,20 +85,40 @@ fun FileListItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Real ES File Explorer Icon or Media Thumbnail
-        if (isMediaFile(item.file)) {
-            FileThumbnail(
-                file = item.file,
-                fallbackRes = iconRes,
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(RoundedCornerShape(4.dp))
-            )
-        } else {
-            Image(
-                painter = painterResource(iconRes),
-                contentDescription = null,
-                modifier = Modifier.size(38.dp)
-            )
+        Box(modifier = Modifier.size(38.dp), contentAlignment = Alignment.Center) {
+            if (isMediaFile(item.file)) {
+                FileThumbnail(
+                    file = item.file,
+                    fallbackRes = iconRes,
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                )
+            } else {
+                Image(
+                    painter = painterResource(iconRes),
+                    contentDescription = null,
+                    modifier = Modifier.size(38.dp)
+                )
+            }
+            if (item.isDirectory && folderBadgeIcon != null) {
+                Image(
+                    painter = painterResource(folderBadgeIcon),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(16.dp)
+                        .offset(y = 2.dp)
+                )
+            } else if (item.isDirectory && folderAppIcon != null) {
+                Image(
+                    bitmap = folderAppIcon!!,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(18.dp)
+                        .offset(y = 2.dp)
+                        .clip(CircleShape)
+                )
+            }
         }
 
         Spacer(modifier = Modifier.width(14.dp))
