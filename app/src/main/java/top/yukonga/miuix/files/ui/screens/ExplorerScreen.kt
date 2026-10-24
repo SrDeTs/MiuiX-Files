@@ -48,14 +48,21 @@ fun ExplorerScreen(
     initialDir: File,
     onNavigateBack: () -> Unit,
     onOpenFile: (File) -> Unit,
+    onMenuClick: () -> Unit = {},
+    tabs: List<EsWindowTab> = emptyList(),
+    activeTabId: String = "",
+    onTabSelect: (EsWindowTab) -> Unit = {},
+    onTabClose: (EsWindowTab) -> Unit = {},
+    onAddTab: (() -> Unit)? = null,
+    onCurrentDirChange: (File) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val prefs = remember(context) { context.getSharedPreferences(MiuiXFilesPreferences.PREFS_NAME, Context.MODE_PRIVATE) }
 
-    var currentDir by remember { mutableStateOf(initialDir) }
-    var files by remember { mutableStateOf(StorageManager.getCachedDir(initialDir) ?: emptyList()) }
+    var currentDir by remember(initialDir) { mutableStateOf(initialDir) }
+    var files by remember(initialDir) { mutableStateOf(StorageManager.getCachedDir(initialDir) ?: emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
     var showHidden by remember { mutableStateOf(prefs.getBoolean(MiuiXFilesPreferences.KEY_SHOW_HIDDEN, false)) }
     var currentSort by remember { mutableStateOf(SortOption.NAME_ASC) }
@@ -81,6 +88,7 @@ fun ExplorerScreen(
     fun navigateToDir(target: File) {
         navForward = target.absolutePath.length >= currentDir.absolutePath.length
         currentDir = target
+        onCurrentDirChange(target)
     }
 
     fun refreshFiles() {
@@ -133,87 +141,29 @@ fun ExplorerScreen(
             .background(Color(0xFF292C2E))
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // 1:1 Top Bar for Explorer
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFF31353D))
-                    .statusBarsPadding()
-                    .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Menu (☰)
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable {
-                            if (isSelectionMode) selectedPaths = emptySet()
-                            else onNavigateBack()
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(if (isSelectionMode) R.drawable.toolbar_cancel else R.drawable.toolbar_menu),
-                        contentDescription = "Menu",
-                        modifier = Modifier.size(22.dp),
-                        colorFilter = ColorFilter.tint(Color.White)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(6.dp))
-
-                // Small Home Icon
-                Box(
-                    modifier = Modifier
-                        .size(30.dp)
-                        .clip(CircleShape)
-                        .clickable { onNavigateBack() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(R.drawable.icon_home_tab_home),
-                        contentDescription = "Início",
-                        modifier = Modifier.size(16.dp),
-                        colorFilter = ColorFilter.tint(Color(0xFFB0B3B8))
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(6.dp))
-
-                // Tab pill: Local ✕
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFF464A51))
-                        .padding(horizontal = 10.dp, vertical = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Image(
-                        painter = painterResource(R.drawable.icon_home_tab_sdcard),
-                        contentDescription = null,
-                        modifier = Modifier.size(15.dp),
-                        colorFilter = ColorFilter.tint(Color.White)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = if (isSelectionMode) "${selectedPaths.size} selecionados" else "Local",
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color.White
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .size(16.dp)
-                            .clip(CircleShape)
-                            .clickable { onNavigateBack() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = "✕", fontSize = 11.sp, color = Color(0xFFB0B0B0))
-                    }
+            // 1:1 Top Bar for Explorer with multi-tab switching and global drawer menu (☰)
+            val displayTabs = remember(tabs, activeTabId, isSelectionMode, selectedPaths.size, currentDir) {
+                if (tabs.isEmpty()) emptyList()
+                else tabs.map { t ->
+                    if (t.id == activeTabId && isSelectionMode) {
+                        t.copy(title = "${selectedPaths.size} selecionados")
+                    } else t
                 }
             }
+            EsTopHeader(
+                tabTitle = if (isSelectionMode) "${selectedPaths.size} selecionados" else "Local",
+                onMenuClick = {
+                    if (isSelectionMode) selectedPaths = emptySet()
+                    else onMenuClick()
+                },
+                onTabCloseClick = onNavigateBack,
+                menuIconRes = if (isSelectionMode) R.drawable.toolbar_cancel else R.drawable.toolbar_menu,
+                tabs = displayTabs,
+                activeTabId = activeTabId,
+                onTabSelect = onTabSelect,
+                onTabClose = onTabClose,
+                onAddTab = onAddTab
+            )
 
             // Path Breadcrumb Bar with Right Gauge Chip
             val totalSpace = currentDir.totalSpace

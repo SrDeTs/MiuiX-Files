@@ -8,21 +8,25 @@ import android.os.Environment
 import android.provider.Settings
 import android.webkit.MimeTypeMap
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.FileProvider
 import top.yukonga.miuix.files.core.model.FileCategory
+import top.yukonga.miuix.files.core.storage.StorageManager
+import top.yukonga.miuix.files.ui.components.EsWindowTab
 import top.yukonga.miuix.files.ui.screens.*
 import top.yukonga.miuix.files.ui.theme.MiuiXFilesTheme
 import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
 
 sealed class Screen {
@@ -44,6 +48,38 @@ sealed class Screen {
     data object Analyzer : Screen()
 }
 
+data class WindowSession(
+    val id: String,
+    val screen: Screen
+) {
+    fun toTab(): EsWindowTab = when (val s = screen) {
+        is Screen.Home -> EsWindowTab(id = id, title = "Página Inicial", iconRes = R.drawable.icon_home_tab_home, tintIcon = true)
+        is Screen.Explorer -> {
+            val isRoot = s.directory.absolutePath == "/"
+            val label = when {
+                isRoot -> "Dispositivo"
+                s.directory.name == "0" || s.directory.absolutePath == "/sdcard" -> "Local"
+                else -> s.directory.name.ifBlank { "Local" }
+            }
+            EsWindowTab(id = id, title = label, iconRes = R.drawable.icon_home_tab_sdcard, tintIcon = true)
+        }
+        is Screen.Category -> {
+            val catIcon = when (s.category) {
+                FileCategory.IMAGES -> R.drawable.es_cat_photo
+                FileCategory.VIDEOS -> R.drawable.es_cat_movie
+                FileCategory.DOCUMENTS -> R.drawable.es_cat_doc
+                FileCategory.AUDIO -> R.drawable.es_cat_music
+                FileCategory.APPS -> R.drawable.es_cat_app
+                FileCategory.ARCHIVES -> R.drawable.format_zip
+                FileCategory.DOWNLOADS -> R.drawable.es_tool_downloader
+                FileCategory.RECYCLE_BIN -> R.drawable.es_tool_recycle
+            }
+            EsWindowTab(id = id, title = s.category.label, iconRes = catIcon, tintIcon = false)
+        }
+        else -> EsWindowTab(id = id, title = "Janela", iconRes = R.drawable.icon_home_tab_sdcard, tintIcon = true)
+    }
+}
+
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,13 +89,84 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MiuiXFilesTheme {
-                val backStack = remember { mutableStateListOf<Screen>(Screen.Home) }
-                var previousDepth by remember { mutableIntStateOf(1) }
-                val currentDepth = backStack.size
-                val isForward = currentDepth >= previousDepth
-                SideEffect { previousDepth = currentDepth }
-                val currentScreen = backStack.lastOrNull() ?: Screen.Home
-                androidx.activity.compose.BackHandler(enabled = backStack.size > 1) { backStack.removeAt(backStack.size - 1) }
+                // Multi-window tabs (like ES File Explorer: Página Inicial + Local + Categories)
+                val defaultLocalDir = remember { Environment.getExternalStorageDirectory() }
+                val windows = remember {
+                    mutableStateListOf(
+                        WindowSession(id = "home", screen = Screen.Home),
+                        WindowSession(id = "local_default", screen = Screen.Explorer(defaultLocalDir))
+                    )
+                }
+                var activeWindowIndex by remember { mutableIntStateOf(0) }
+                var previousWindowIndex by remember { mutableIntStateOf(0) }
+
+                // Overlay screens (Search, Cleaner, Viewers, Settings, etc.) pushed above the active window
+                val overlayStack = remember { mutableStateListOf<Screen>() }
+                var previousOverlayDepth by remember { mutableIntStateOf(0) }
+                var drawerOpen by remember { mutableStateOf(false) }
+                var nextTabCounter by remember { mutableIntStateOf(1) }
+
+                val currentOverlay = overlayStack.lastOrNull()
+                val activeWindow = windows.getOrNull(activeWindowIndex.coerceIn(0, (windows.size - 1).coerceAtLeast(0)))
+                    ?: WindowSession("home", Screen.Home)
+                val currentScreen = currentOverlay ?: activeWindow.screen
+
+                val isForward = if (overlayStack.size != previousOverlayDepth) {
+                    overlayStack.size > previousOverlayDepth
+                } else {
+                    activeWindowIndex >= previousWindowIndex
+                }
+                SideEffect {
+                    previousOverlayDepth = overlayStack.size
+                    previousWindowIndex = activeWindowIndex
+                }
+
+                fun openOrSwitchWindow(targetScreen: Screen) {
+                    overlayStack.clear()
+                    val existingIdx = windows.indexOfFirst { w ->
+                        when {
+                            w.screen is Screen.Home && targetScreen is Screen.Home -> true
+                            w.screen is Screen.Category && targetScreen is Screen.Category -> w.screen.category == targetScreen.category
+                            w.screen is Screen.Explorer && targetScreen is Screen.Explorer -> w.screen.directory.absolutePath == targetScreen.directory.absolutePath
+                            else -> false
+                        }
+                    }
+                    if (existingIdx >= 0) {
+                        activeWindowIndex = existingIdx
+                    } else {
+                        val newId = "win_${nextTabCounter++}"
+                        windows.add(WindowSession(id = newId, screen = targetScreen))
+                        activeWindowIndex = windows.lastIndex
+                    }
+                }
+
+                fun closeWindow(tabId: String) {
+                    if (windows.size <= 1) {
+                        // Never leave 0 windows; reset the single window to Home
+                        windows[0] = WindowSession(id = "home", screen = Screen.Home)
+                        activeWindowIndex = 0
+                        return
+                    }
+                    val idx = windows.indexOfFirst { it.id == tabId }
+                    if (idx >= 0) {
+                        windows.removeAt(idx)
+                        if (activeWindowIndex >= windows.size) {
+                            activeWindowIndex = windows.lastIndex
+                        } else if (activeWindowIndex > idx) {
+                            activeWindowIndex--
+                        }
+                    }
+                }
+
+                BackHandler(enabled = drawerOpen || overlayStack.isNotEmpty() || activeWindowIndex > 0) {
+                    when {
+                        drawerOpen -> drawerOpen = false
+                        overlayStack.isNotEmpty() -> overlayStack.removeAt(overlayStack.lastIndex)
+                        activeWindowIndex > 0 -> activeWindowIndex = 0
+                    }
+                }
+
+                val windowTabs = remember(windows.toList()) { windows.map { it.toTab() } }
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
@@ -75,16 +182,33 @@ class MainActivity : ComponentActivity() {
                         fun handleOpen(file: File) {
                             val ext = file.extension.lowercase()
                             when {
-                                ext in textExts -> backStack.add(Screen.TextEditor(file))
-                                ext in imgExts -> backStack.add(Screen.ImageViewer(file))
-                                ext in audioExts -> backStack.add(Screen.AudioPlayer(file))
-                                ext == "zip" || ext == "apk" -> backStack.add(Screen.ZipViewer(file))
+                                ext in textExts -> overlayStack.add(Screen.TextEditor(file))
+                                ext in imgExts -> overlayStack.add(Screen.ImageViewer(file))
+                                ext in audioExts -> overlayStack.add(Screen.AudioPlayer(file))
+                                ext == "zip" || ext == "apk" -> overlayStack.add(Screen.ZipViewer(file))
                                 else -> openFile(file)
                             }
                         }
 
+                        val onSelectTab: (EsWindowTab) -> Unit = { tab ->
+                            val idx = windows.indexOfFirst { it.id == tab.id }
+                            if (idx >= 0) {
+                                overlayStack.clear()
+                                activeWindowIndex = idx
+                            }
+                        }
+                        val onCloseTab: (EsWindowTab) -> Unit = { tab ->
+                            closeWindow(tab.id)
+                        }
+                        val onAddNewLocalTab: () -> Unit = {
+                            val newId = "win_${nextTabCounter++}"
+                            windows.add(WindowSession(id = newId, screen = Screen.Explorer(defaultLocalDir)))
+                            overlayStack.clear()
+                            activeWindowIndex = windows.lastIndex
+                        }
+
                         AnimatedContent(
-                            targetState = currentScreen,
+                            targetState = Pair(activeWindow.id, currentScreen),
                             transitionSpec = {
                                 if (isForward) {
                                     (slideInHorizontally(animationSpec = folmeSpring(damping = 0.88f, response = 0.34f)) { it } +
@@ -99,100 +223,201 @@ class MainActivity : ComponentActivity() {
                                 }
                             },
                             label = "miuix_nav_screen_transition"
-                        ) { screen ->
+                        ) { (_, screen) ->
                             when (screen) {
-                            is Screen.Home -> {
-                                HomeScreen(
-                                    onNavigateDir = { dir -> backStack.add(Screen.Explorer(dir)) },
-                                    onNavigateCategory = { cat -> backStack.add(Screen.Category(cat)) },
-                                    onNavigateCleaner = { backStack.add(Screen.Cleaner) },
-                                    onNavigateAppManager = { backStack.add(Screen.AppManager) },
-                                    onNavigateSettings = { backStack.add(Screen.Settings) },
-                                    onOpenFile = { file -> handleOpen(file) },
-                                    onSearch = { backStack.add(Screen.Search) },
-                                    onHistory = { backStack.add(Screen.History) },
-                                    onCloud = { backStack.add(Screen.Network("Unidade de Nuvem")) },
-                                    onSender = { backStack.add(Screen.Sender) },
-                                    onTextEditor = { backStack.add(Screen.TextEditor(null)) },
-                                    onNetwork = { backStack.add(Screen.Network("Rede Local (LAN)")) },
-                                    onViewPc = { backStack.add(Screen.ViewOnPc) },
-                                    onAnalyzer = { backStack.add(Screen.Analyzer) }
-                                )
-                            }
-                            is Screen.Analyzer -> AnalyzerScreen(
-                                onBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) },
-                                onOpenDir = { backStack.add(Screen.Explorer(it)) },
-                                onOpenFile = { handleOpen(it) }
-                            )
-                            is Screen.Search -> SearchScreen(
-                                onBack = { backStack.removeAt(backStack.size - 1) },
-                                onOpen = { f -> if (f.isDirectory) backStack.add(Screen.Explorer(f.file)) else handleOpen(f.file) }
-                            )
-                            is Screen.History -> HistoryScreen(
-                                onBack = { backStack.removeAt(backStack.size - 1) },
-                                onOpen = { f -> if (f.isDirectory) backStack.add(Screen.Explorer(f.file)) else handleOpen(f.file) }
-                            )
-                            is Screen.TextEditor -> TextEditorScreen(
-                                initialFile = screen.file,
-                                onBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) }
-                            )
-                            is Screen.ImageViewer -> ImageViewerScreen(
-                                file = screen.file,
-                                onBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) }
-                            )
-                            is Screen.ZipViewer -> ZipViewerScreen(
-                                zipFile = screen.file,
-                                onBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) },
-                                onNavigateDir = { dir ->
-                                    backStack.removeAt(backStack.size - 1)
-                                    backStack.add(Screen.Explorer(dir))
+                                is Screen.Home -> {
+                                    HomeScreen(
+                                        onNavigateDir = { dir -> openOrSwitchWindow(Screen.Explorer(dir)) },
+                                        onNavigateCategory = { cat -> openOrSwitchWindow(Screen.Category(cat)) },
+                                        onNavigateCleaner = { overlayStack.add(Screen.Cleaner) },
+                                        onNavigateAppManager = { overlayStack.add(Screen.AppManager) },
+                                        onNavigateSettings = { overlayStack.add(Screen.Settings) },
+                                        onOpenFile = { file -> handleOpen(file) },
+                                        onSearch = { overlayStack.add(Screen.Search) },
+                                        onHistory = { overlayStack.add(Screen.History) },
+                                        onCloud = { overlayStack.add(Screen.Network("Unidade de Nuvem")) },
+                                        onSender = { overlayStack.add(Screen.Sender) },
+                                        onTextEditor = { overlayStack.add(Screen.TextEditor(null)) },
+                                        onNetwork = { overlayStack.add(Screen.Network("Rede Local (LAN)")) },
+                                        onViewPc = { overlayStack.add(Screen.ViewOnPc) },
+                                        onAnalyzer = { overlayStack.add(Screen.Analyzer) },
+                                        onMenuClick = { drawerOpen = true },
+                                        tabs = windowTabs,
+                                        activeTabId = activeWindow.id,
+                                        onTabSelect = onSelectTab,
+                                        onTabClose = onCloseTab,
+                                        onAddTab = onAddNewLocalTab
+                                    )
                                 }
-                            )
-                            is Screen.AudioPlayer -> AudioPlayerScreen(
-                                file = screen.file,
-                                onBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) }
-                            )
-                            is Screen.ViewOnPc -> ViewOnPcScreen(
-                                onBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) }
-                            )
-                            is Screen.Network -> NetworkScreen(
-                                title = screen.title,
-                                onBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) },
-                                onOpenPcServer = { backStack.add(Screen.ViewOnPc) }
-                            )
-                            is Screen.Sender -> SenderScreen(
-                                onBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) }
-                            )
-                            is Screen.Explorer -> {
-                                ExplorerScreen(
-                                    initialDir = screen.directory,
-                                    onNavigateBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) },
-                                    onOpenFile = { file -> handleOpen(file) }
+                                is Screen.Analyzer -> AnalyzerScreen(
+                                    onBack = { if (overlayStack.isNotEmpty()) overlayStack.removeAt(overlayStack.lastIndex) },
+                                    onOpenDir = {
+                                        overlayStack.clear()
+                                        openOrSwitchWindow(Screen.Explorer(it))
+                                    },
+                                    onOpenFile = { handleOpen(it) }
                                 )
-                            }
-                            is Screen.Category -> {
-                                CategoryScreen(
-                                    category = screen.category,
-                                    onNavigateBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) },
-                                    onOpenFile = { file -> handleOpen(file) }
+                                is Screen.Search -> SearchScreen(
+                                    onBack = { if (overlayStack.isNotEmpty()) overlayStack.removeAt(overlayStack.lastIndex) },
+                                    onOpen = { f ->
+                                        if (f.isDirectory) {
+                                            overlayStack.clear()
+                                            openOrSwitchWindow(Screen.Explorer(f.file))
+                                        } else handleOpen(f.file)
+                                    }
                                 )
-                            }
-                            is Screen.Cleaner -> {
-                                CleanerScreen(
-                                    onNavigateBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) }
+                                is Screen.History -> HistoryScreen(
+                                    onBack = { if (overlayStack.isNotEmpty()) overlayStack.removeAt(overlayStack.lastIndex) },
+                                    onOpen = { f ->
+                                        if (f.isDirectory) {
+                                            overlayStack.clear()
+                                            openOrSwitchWindow(Screen.Explorer(f.file))
+                                        } else handleOpen(f.file)
+                                    }
                                 )
-                            }
-                            is Screen.AppManager -> {
-                                AppManagerScreen(
-                                    onNavigateBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) }
+                                is Screen.TextEditor -> TextEditorScreen(
+                                    initialFile = screen.file,
+                                    onBack = { if (overlayStack.isNotEmpty()) overlayStack.removeAt(overlayStack.lastIndex) }
                                 )
-                            }
-                            is Screen.Settings -> {
-                                SettingsScreen(
-                                    onNavigateBack = { if (backStack.size > 1) backStack.removeAt(backStack.size - 1) }
+                                is Screen.ImageViewer -> ImageViewerScreen(
+                                    file = screen.file,
+                                    onBack = { if (overlayStack.isNotEmpty()) overlayStack.removeAt(overlayStack.lastIndex) }
                                 )
+                                is Screen.ZipViewer -> ZipViewerScreen(
+                                    zipFile = screen.file,
+                                    onBack = { if (overlayStack.isNotEmpty()) overlayStack.removeAt(overlayStack.lastIndex) },
+                                    onNavigateDir = { dir ->
+                                        overlayStack.clear()
+                                        openOrSwitchWindow(Screen.Explorer(dir))
+                                    }
+                                )
+                                is Screen.AudioPlayer -> AudioPlayerScreen(
+                                    file = screen.file,
+                                    onBack = { if (overlayStack.isNotEmpty()) overlayStack.removeAt(overlayStack.lastIndex) }
+                                )
+                                is Screen.ViewOnPc -> ViewOnPcScreen(
+                                    onBack = { if (overlayStack.isNotEmpty()) overlayStack.removeAt(overlayStack.lastIndex) }
+                                )
+                                is Screen.Network -> NetworkScreen(
+                                    title = screen.title,
+                                    onBack = { if (overlayStack.isNotEmpty()) overlayStack.removeAt(overlayStack.lastIndex) },
+                                    onOpenPcServer = { overlayStack.add(Screen.ViewOnPc) }
+                                )
+                                is Screen.Sender -> SenderScreen(
+                                    onBack = { if (overlayStack.isNotEmpty()) overlayStack.removeAt(overlayStack.lastIndex) }
+                                )
+                                is Screen.Explorer -> {
+                                    ExplorerScreen(
+                                        initialDir = screen.directory,
+                                        onNavigateBack = {
+                                            val homeIdx = windows.indexOfFirst { it.screen is Screen.Home }
+                                            if (homeIdx >= 0) activeWindowIndex = homeIdx
+                                            else closeWindow(activeWindow.id)
+                                        },
+                                        onOpenFile = { file -> handleOpen(file) },
+                                        onMenuClick = { drawerOpen = true },
+                                        tabs = windowTabs,
+                                        activeTabId = activeWindow.id,
+                                        onTabSelect = onSelectTab,
+                                        onTabClose = onCloseTab,
+                                        onAddTab = onAddNewLocalTab,
+                                        onCurrentDirChange = { newDir ->
+                                            val idx = windows.indexOfFirst { it.id == activeWindow.id }
+                                            if (idx >= 0) {
+                                                windows[idx] = windows[idx].copy(screen = Screen.Explorer(newDir))
+                                            }
+                                        }
+                                    )
+                                }
+                                is Screen.Category -> {
+                                    CategoryScreen(
+                                        category = screen.category,
+                                        onNavigateBack = {
+                                            val homeIdx = windows.indexOfFirst { it.screen is Screen.Home }
+                                            if (homeIdx >= 0) activeWindowIndex = homeIdx
+                                            else closeWindow(activeWindow.id)
+                                        },
+                                        onOpenFile = { file -> handleOpen(file) },
+                                        onMenuClick = { drawerOpen = true },
+                                        tabs = windowTabs,
+                                        activeTabId = activeWindow.id,
+                                        onTabSelect = onSelectTab,
+                                        onTabClose = onCloseTab,
+                                        onAddTab = onAddNewLocalTab
+                                    )
+                                }
+                                is Screen.Cleaner -> {
+                                    CleanerScreen(
+                                        onNavigateBack = { if (overlayStack.isNotEmpty()) overlayStack.removeAt(overlayStack.lastIndex) }
+                                    )
+                                }
+                                is Screen.AppManager -> {
+                                    AppManagerScreen(
+                                        onNavigateBack = { if (overlayStack.isNotEmpty()) overlayStack.removeAt(overlayStack.lastIndex) }
+                                    )
+                                }
+                                is Screen.Settings -> {
+                                    SettingsScreen(
+                                        onNavigateBack = { if (overlayStack.isNotEmpty()) overlayStack.removeAt(overlayStack.lastIndex) }
+                                    )
+                                }
                             }
                         }
+
+                        // Gaveta lateral global (☰) acessível de qualquer aba (Home, Local, Categorias)
+                        AnimatedVisibility(
+                            visible = drawerOpen,
+                            enter = fadeIn(animationSpec = folmeSpring(damping = 0.9f, response = 0.28f)),
+                            exit = fadeOut(animationSpec = folmeSpring(damping = 0.9f, response = 0.22f))
+                        ) {
+                            Box(
+                                Modifier
+                                    .fillMaxSize()
+                                    .background(Color(0x99000000))
+                                    .clickable(remember { MutableInteractionSource() }, null) { drawerOpen = false }
+                            )
+                        }
+                        AnimatedVisibility(
+                            visible = drawerOpen,
+                            enter = slideInHorizontally(animationSpec = folmeSpring(damping = 0.86f, response = 0.32f)) { -it },
+                            exit = slideOutHorizontally(animationSpec = folmeSpring(damping = 0.92f, response = 0.25f)) { -it }
+                        ) {
+                            EsDrawer(
+                                onClose = { drawerOpen = false },
+                                onHome = {
+                                    drawerOpen = false
+                                    openOrSwitchWindow(Screen.Home)
+                                },
+                                onLocal = {
+                                    drawerOpen = false
+                                    val root = StorageManager.getCachedVolumes()?.firstOrNull()?.path ?: defaultLocalDir
+                                    openOrSwitchWindow(Screen.Explorer(root))
+                                },
+                                onRoot = {
+                                    drawerOpen = false
+                                    openOrSwitchWindow(Screen.Explorer(File("/")))
+                                },
+                                onCategory = { cat ->
+                                    drawerOpen = false
+                                    openOrSwitchWindow(Screen.Category(cat))
+                                },
+                                onCleaner = {
+                                    drawerOpen = false
+                                    overlayStack.add(Screen.Cleaner)
+                                },
+                                onAnalyzer = {
+                                    drawerOpen = false
+                                    overlayStack.add(Screen.Analyzer)
+                                },
+                                onApps = {
+                                    drawerOpen = false
+                                    overlayStack.add(Screen.AppManager)
+                                },
+                                onSettings = {
+                                    drawerOpen = false
+                                    overlayStack.add(Screen.Settings)
+                                }
+                            )
                         }
                     }
                 }

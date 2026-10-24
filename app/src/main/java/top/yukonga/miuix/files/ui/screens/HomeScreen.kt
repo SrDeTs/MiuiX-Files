@@ -104,6 +104,12 @@ fun HomeScreen(
     onNetwork: () -> Unit = {},
     onViewPc: () -> Unit = {},
     onAnalyzer: () -> Unit = {},
+    onMenuClick: () -> Unit = {},
+    tabs: List<EsWindowTab> = emptyList(),
+    activeTabId: String = "home",
+    onTabSelect: (EsWindowTab) -> Unit = {},
+    onTabClose: (EsWindowTab) -> Unit = {},
+    onAddTab: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -111,7 +117,6 @@ fun HomeScreen(
     var volumes by remember { mutableStateOf(StorageManager.getCachedVolumes() ?: StorageManager.getStorageVolumes(context)) }
     var recentFiles by remember { mutableStateOf(StorageManager.getCachedRecents() ?: emptyList()) }
     var showRecent by remember { mutableStateOf(true) }
-    var drawerOpen by remember { mutableStateOf(false) }
     var showNew by remember { mutableStateOf(false) }
     var showWindows by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
@@ -134,11 +139,19 @@ fun HomeScreen(
             top.yukonga.miuix.files.core.cleaner.CleanerEngine.scanJunk(context)
         }
     }
-    BackHandler(enabled = drawerOpen) { drawerOpen = false }
 
     Box(modifier.fillMaxSize().background(EsBgColor)) {
         Column(Modifier.fillMaxSize()) {
-            EsTopHeader(tabTitle = "Página Inicial", onMenuClick = { drawerOpen = true }, onTabCloseClick = {})
+            EsTopHeader(
+                tabTitle = "Página Inicial",
+                onMenuClick = onMenuClick,
+                onTabCloseClick = { tabs.firstOrNull { it.id == activeTabId }?.let(onTabClose) },
+                tabs = tabs,
+                activeTabId = activeTabId,
+                onTabSelect = onTabSelect,
+                onTabClose = onTabClose,
+                onAddTab = onAddTab
+            )
 
             LazyColumn(
                 Modifier.weight(1f).fillMaxWidth().overScrollVertical(),
@@ -225,32 +238,6 @@ fun HomeScreen(
                 onHistoryClick = onHistory
             )
         }
-
-        // Gaveta lateral (☰) com mola Folme
-        AnimatedVisibility(
-            visible = drawerOpen,
-            enter = fadeIn(animationSpec = folmeSpring(damping = 0.9f, response = 0.28f)),
-            exit = fadeOut(animationSpec = folmeSpring(damping = 0.9f, response = 0.22f))
-        ) {
-            Box(Modifier.fillMaxSize().background(Color(0x99000000)).clickable(remember { MutableInteractionSource() }, null) { drawerOpen = false })
-        }
-        AnimatedVisibility(
-            visible = drawerOpen,
-            enter = slideInHorizontally(animationSpec = folmeSpring(damping = 0.86f, response = 0.32f)) { -it },
-            exit = slideOutHorizontally(animationSpec = folmeSpring(damping = 0.92f, response = 0.25f)) { -it }
-        ) {
-            EsDrawer(
-                onClose = { drawerOpen = false },
-                onHome = { drawerOpen = false },
-                onLocal = { drawerOpen = false; volumes.firstOrNull()?.let { onNavigateDir(it.path) } },
-                onRoot = { drawerOpen = false; onNavigateDir(File("/")) },
-                onCategory = { drawerOpen = false; onNavigateCategory(it) },
-                onCleaner = { drawerOpen = false; onNavigateCleaner() },
-                onAnalyzer = { drawerOpen = false; onAnalyzer() },
-                onApps = { drawerOpen = false; onNavigateAppManager() },
-                onSettings = { drawerOpen = false; onNavigateSettings() }
-            )
-        }
     }
 
     if (showNew) {
@@ -272,17 +259,55 @@ fun HomeScreen(
         }
     }
     if (showWindows) {
-        OverlayDialog(show = showWindows, title = "Janelas", onDismissRequest = { showWindows = false }) {
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color(0x22FFFFFF)).padding(14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Image(painterResource(R.drawable.icon_home_tab_home), null, Modifier.size(18.dp))
-                Spacer(Modifier.width(10.dp))
-                Text("Página Inicial", fontSize = 14.sp)
+        OverlayDialog(show = showWindows, title = "Janelas (${tabs.size})", onDismissRequest = { showWindows = false }) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                tabs.forEach { tab ->
+                    val active = tab.id == activeTabId
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (active) Color(0x332EC7E0) else Color(0x22FFFFFF))
+                            .clickable {
+                                showWindows = false
+                                onTabSelect(tab)
+                            }
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(
+                            painterResource(tab.iconRes),
+                            null,
+                            Modifier.size(18.dp),
+                            colorFilter = if (tab.tintIcon) ColorFilter.tint(Color.White) else null
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(tab.title, fontSize = 14.sp, color = Color.White, modifier = Modifier.weight(1f))
+                        if (tabs.size > 1) {
+                            Text(
+                                "✕",
+                                fontSize = 14.sp,
+                                color = Color(0xFFFF6B6B),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable { onTabClose(tab) }
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+                if (onAddTab != null) {
+                    TextButton(
+                        text = "+ Nova Janela (Local)",
+                        onClick = {
+                            showWindows = false
+                            onAddTab()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                TextButton(text = "Fechar", onClick = { showWindows = false }, modifier = Modifier.fillMaxWidth())
             }
-            Spacer(Modifier.height(12.dp))
-            TextButton(text = "Fechar", onClick = { showWindows = false }, modifier = Modifier.fillMaxWidth())
         }
     }
 }
@@ -328,7 +353,7 @@ private fun RecentGroupBlock(g: RecentGroup, onOpenFile: (File) -> Unit, onNavig
 }
 
 @Composable
-private fun EsDrawer(
+fun EsDrawer(
     onClose: () -> Unit, onHome: () -> Unit, onLocal: () -> Unit, onRoot: () -> Unit,
     onCategory: (FileCategory) -> Unit, onCleaner: () -> Unit, onAnalyzer: () -> Unit, onApps: () -> Unit, onSettings: () -> Unit
 ) {

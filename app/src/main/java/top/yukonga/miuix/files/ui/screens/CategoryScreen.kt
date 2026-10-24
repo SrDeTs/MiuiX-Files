@@ -33,6 +33,8 @@ import top.yukonga.miuix.files.core.storage.FileOperations
 import top.yukonga.miuix.files.core.storage.StorageManager
 import top.yukonga.miuix.files.ui.components.EsApkPropertiesDialog
 import top.yukonga.miuix.files.ui.components.EsClipboardSideTab
+import top.yukonga.miuix.files.ui.components.EsTopHeader
+import top.yukonga.miuix.files.ui.components.EsWindowTab
 import top.yukonga.miuix.files.ui.components.FileGridItem
 import top.yukonga.miuix.files.ui.components.FileListItem
 import top.yukonga.miuix.files.ui.components.InlineTransferProgressStrip
@@ -51,6 +53,12 @@ fun CategoryScreen(
     category: FileCategory,
     onNavigateBack: () -> Unit,
     onOpenFile: (File) -> Unit,
+    onMenuClick: () -> Unit = {},
+    tabs: List<EsWindowTab> = emptyList(),
+    activeTabId: String = "",
+    onTabSelect: (EsWindowTab) -> Unit = {},
+    onTabClose: (EsWindowTab) -> Unit = {},
+    onAddTab: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -105,101 +113,29 @@ fun CategoryScreen(
             .background(Color(0xFF292C2E))
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // 1:1 Top Bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFF31353D))
-                    .statusBarsPadding()
-                    .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Menu (☰)
-                val menuInteraction = remember { MutableInteractionSource() }
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .pressable(
-                            interactionSource = menuInteraction,
-                            indication = SinkFeedback()
-                        )
-                        .clickable(
-                            interactionSource = menuInteraction,
-                            indication = null,
-                            onClick = onNavigateBack
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(R.drawable.toolbar_menu),
-                        contentDescription = "Menu",
-                        modifier = Modifier.size(24.dp),
-                        colorFilter = ColorFilter.tint(Color.White)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Small Home Icon
-                val homeInteraction = remember { MutableInteractionSource() }
-                Box(
-                    modifier = Modifier
-                        .size(30.dp)
-                        .clip(CircleShape)
-                        .pressable(
-                            interactionSource = homeInteraction,
-                            indication = SinkFeedback()
-                        )
-                        .clickable(
-                            interactionSource = homeInteraction,
-                            indication = null,
-                            onClick = onNavigateBack
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(R.drawable.icon_home_tab_home),
-                        contentDescription = "Início",
-                        modifier = Modifier.size(16.dp),
-                        colorFilter = ColorFilter.tint(Color(0xFFB0B3B8))
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Tab pill
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFF464A51))
-                        .padding(horizontal = 10.dp, vertical = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Image(
-                        painter = painterResource(catIcon),
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = category.label,
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color.White
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Box(
-                        modifier = Modifier
-                            .size(16.dp)
-                            .clip(CircleShape)
-                            .clickable { onNavigateBack() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = "✕", fontSize = 11.sp, color = Color(0xFFB0B0B0))
-                    }
+            // 1:1 Top Bar with multi-tab switching and global drawer menu (☰)
+            val displayTabs = remember(tabs, activeTabId, isSelectionMode, selectedPaths.size) {
+                if (tabs.isEmpty()) emptyList()
+                else tabs.map { t ->
+                    if (t.id == activeTabId && isSelectionMode) {
+                        t.copy(title = "${selectedPaths.size} selecionados")
+                    } else t
                 }
             }
+            EsTopHeader(
+                tabTitle = if (isSelectionMode) "${selectedPaths.size} selecionados" else category.label,
+                onMenuClick = {
+                    if (isSelectionMode) selectedPaths = emptySet()
+                    else onMenuClick()
+                },
+                onTabCloseClick = onNavigateBack,
+                menuIconRes = if (isSelectionMode) R.drawable.toolbar_cancel else R.drawable.toolbar_menu,
+                tabs = displayTabs,
+                activeTabId = activeTabId,
+                onTabSelect = onTabSelect,
+                onTabClose = onTabClose,
+                onAddTab = onAddTab
+            )
 
             // Path Header Bar with Gauge Chip
             Row(
