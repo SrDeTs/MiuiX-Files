@@ -132,7 +132,7 @@ fun FileListItem(
                 text = item.name,
                 fontWeight = FontWeight.Medium,
                 fontSize = 14.sp,
-                color = Color.White,
+                color = EsTextPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -145,7 +145,7 @@ fun FileListItem(
             Text(
                 text = subtitle,
                 fontSize = 11.sp,
-                color = Color(0xFF9E9E9E),
+                color = EsTextSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

@@ -38,6 +38,6 @@ fun CircularStorageGauge(
             drawArc(trackColor, -90f, 360f, false, tl, arc, style = Stroke(s))
             drawArc(progressColor, -90f, 360f * animated, false, tl, arc, style = Stroke(s, cap = StrokeCap.Butt))
         }
-        Text(text = "$percentage%", fontSize = 9.5.sp, color = Color.White)
+        Text(text = "$percentage%", fontSize = 9.5.sp, color = EsTextPrimary)
     }
 }

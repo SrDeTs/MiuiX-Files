@@ -48,14 +48,14 @@ fun FileActionBottomBar(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color(0xFF292C2E))
+            .background(EsBgColor)
             .navigationBarsPadding()
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(Color(0xFF383C42))
+                .background(EsDividerColor)
         )
         Row(
             modifier = Modifier
@@ -92,14 +92,14 @@ fun EsClipboardBottomBar(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color(0xFF292C2E))
+            .background(EsBgColor)
             .navigationBarsPadding()
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(Color(0xFF383C42))
+                .background(EsDividerColor)
         )
         Row(
             modifier = Modifier
@@ -251,7 +251,7 @@ fun InlineTransferProgressStrip(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF31353D))
+                .background(EsTopColor)
                 .padding(horizontal = 14.dp, vertical = 6.dp)
         ) {
             Row(
@@ -263,7 +263,7 @@ fun InlineTransferProgressStrip(
                     text = "${state.title}: ${state.currentFile}",
                     fontSize = 11.5.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color.White,
+                    color = EsTextPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
@@ -273,17 +273,13 @@ fun InlineTransferProgressStrip(
                     text = "${(animatedProgress * 100).toInt()}% (${state.completedCount}/${state.totalCount})",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF2EC7E0)
+                    color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.primary
                 )
             }
             Spacer(Modifier.height(5.dp))
             LinearProgressIndicator(
                 progress = animatedProgress,
-                height = 4.dp,
-                colors = ProgressIndicatorDefaults.progressIndicatorColors(
-                    foregroundColor = Color(0xFF2EC7E0),
-                    backgroundColor = Color(0xFF454952)
-                )
+                height = 4.dp
             )
         }
     }
@@ -317,14 +313,14 @@ private fun ActionItem(
             painter = painterResource(iconRes),
             contentDescription = label,
             modifier = Modifier.size(23.dp),
-            colorFilter = ColorFilter.tint(Color(0xFFE0E0E0))
+            colorFilter = ColorFilter.tint(EsTextPrimary.copy(alpha = 0.88f))
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = label,
             fontSize = 10.5.sp,
             fontWeight = FontWeight.Normal,
-            color = Color(0xFFB0B3B8)
+            color = EsTextSecondary
         )
     }
 }

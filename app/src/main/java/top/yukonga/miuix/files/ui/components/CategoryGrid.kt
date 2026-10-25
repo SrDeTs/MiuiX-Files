@@ -81,7 +81,7 @@ fun EsTopCategoryRow(
                 Text(
                     text = item.title,
                     fontSize = 13.sp,
-                    color = Color(0xCCFFFFFF),
+                    color = EsTextPrimary.copy(alpha = 0.88f),
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     textAlign = TextAlign.Center
@@ -127,7 +127,7 @@ fun EsToolGrid(
         insideMargin = PaddingValues(vertical = 12.dp, horizontal = 2.dp),
         colors = CardDefaults.defaultColors(
             color = EsCardColor,
-            contentColor = Color.White
+            contentColor = EsTextPrimary
         )
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -187,7 +187,7 @@ private fun ToolItemCell(
         Text(
             text = tool.title,
             fontSize = 12.sp,
-            color = Color(0xCCFFFFFF),
+            color = EsTextPrimary.copy(alpha = 0.85f),
             fontWeight = FontWeight.Normal,
             maxLines = 1,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,

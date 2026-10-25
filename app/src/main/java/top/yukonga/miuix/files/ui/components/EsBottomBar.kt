@@ -35,7 +35,7 @@ fun EsBottomBar(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color(0xFF292C2E))
+            .background(EsBgColor)
             .navigationBarsPadding()
     ) {
         // Subtle 1px top border matching ES File Explorer
@@ -43,7 +43,7 @@ fun EsBottomBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(Color(0xFF383C42))
+                .background(EsDividerColor)
         )
 
         Row(
@@ -116,13 +116,13 @@ private fun EsBottomBarItem(
             painter = painterResource(iconRes),
             contentDescription = title,
             modifier = Modifier.size(23.dp),
-            colorFilter = ColorFilter.tint(Color(0xFFE0E0E0))
+            colorFilter = ColorFilter.tint(EsTextPrimary.copy(alpha = 0.88f))
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = title,
             fontSize = 10.5.sp,
-            color = Color(0xFFB0B3B8),
+            color = EsTextSecondary,
             fontWeight = FontWeight.Normal,
             textAlign = TextAlign.Center
         )

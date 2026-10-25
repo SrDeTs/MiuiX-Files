@@ -158,7 +158,7 @@ fun FileGridItem(
             Text(
                 text = item.name,
                 fontSize = 13.5.sp,
-                color = Color(0xCCFFFFFF),
+                color = EsTextPrimary.copy(alpha = 0.88f),
                 fontWeight = FontWeight.Normal,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,

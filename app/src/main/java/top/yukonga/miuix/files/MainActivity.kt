@@ -170,7 +170,7 @@ class MainActivity : ComponentActivity() {
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
-                    containerColor = Color(0xFF292C2E),
+                    containerColor = top.yukonga.miuix.files.ui.components.EsBgColor,
                     contentWindowInsets = WindowInsets(0, 0, 0, 0)
                 ) { _ ->
                     Box(

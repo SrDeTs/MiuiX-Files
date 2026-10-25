@@ -119,7 +119,7 @@ fun EsApkPropertiesDialog(
                 text = "Propriedades",
                 fontSize = 19.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = EsTextPrimary
             )
 
             Spacer(modifier = Modifier.height(18.dp))
@@ -147,7 +147,7 @@ fun EsApkPropertiesDialog(
                 Text(
                     text = apkFile.nameWithoutExtension,
                     fontSize = 15.sp,
-                    color = Color(0xFFE6E6E6),
+                    color = EsTextPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
@@ -156,12 +156,12 @@ fun EsApkPropertiesDialog(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Thin dark divider
+            // Thin divider
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(Color(0xFF3E4247))
+                    .background(EsDividerColor)
             )
 
             Spacer(modifier = Modifier.height(14.dp))
@@ -279,13 +279,13 @@ private fun ApkDetailRow(label: String, value: String) {
         Text(
             text = label,
             fontSize = 13.sp,
-            color = Color(0xFFA0A3A6),
+            color = EsTextSecondary,
             modifier = Modifier.width(114.dp)
         )
         Text(
             text = value,
             fontSize = 13.sp,
-            color = Color(0xFFE6E6E6),
+            color = EsTextPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)

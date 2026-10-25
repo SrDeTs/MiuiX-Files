@@ -50,7 +50,7 @@ fun EsPathBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color(0xFF292C2E))
+            .background(EsBgColor)
             .padding(horizontal = 14.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -88,7 +88,7 @@ fun EsPathBar(
                         text = displayName,
                         fontSize = 12.5.sp,
                         fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isLast) Color.White else Color(0xFF9E9E9E)
+                        color = if (isLast) EsTextPrimary else EsTextSecondary
                     )
                 }
 
@@ -96,7 +96,7 @@ fun EsPathBar(
                     Text(
                         text = "›",
                         fontSize = 14.sp,
-                        color = Color(0xFF686C78),
+                        color = EsTextSecondary.copy(alpha = 0.65f),
                         modifier = Modifier.padding(horizontal = 2.dp)
                     )
                 }
@@ -109,7 +109,7 @@ fun EsPathBar(
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFF383D48))
+                .background(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surfaceContainerHighest)
                 .padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -117,14 +117,14 @@ fun EsPathBar(
                 painter = painterResource(R.drawable.toolbar_diskanalyzer_nomal),
                 contentDescription = null,
                 modifier = Modifier.size(13.dp),
-                colorFilter = ColorFilter.tint(Color(0xFFB0B3B8))
+                colorFilter = ColorFilter.tint(EsTextSecondary)
             )
             Spacer(modifier = Modifier.width(4.dp))
             Text(
                 text = "$percentage%",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = EsTextPrimary
             )
         }
     }

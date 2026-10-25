@@ -154,7 +154,7 @@ fun ExplorerScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF292C2E))
+            .background(EsBgColor)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // 1:1 Top Bar for Explorer with multi-tab switching and global drawer menu (☰)
@@ -406,14 +406,14 @@ fun ExplorerScreen(
                     else -> Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(0xFF292C2E))
+                            .background(EsBgColor)
                             .navigationBarsPadding()
                     ) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(1.dp)
-                                .background(Color(0xFF383C42))
+                                .background(EsDividerColor)
                         )
                         Row(
                             modifier = Modifier
@@ -576,12 +576,12 @@ fun ExplorerScreen(
                             text = "Mover para a Reciclagem",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium,
-                            color = Color.White
+                            color = EsTextPrimary
                         )
                         Text(
                             text = if (moveToRecycleBin) "Pode ser restaurado depois" else "Desmarcado: exclusão direta e permanente",
                             fontSize = 11.5.sp,
-                            color = if (moveToRecycleBin) Color(0xFFB0B3B8) else Color(0xFFFF6B6B)
+                            color = if (moveToRecycleBin) EsTextSecondary else Color(0xFFFF6B6B)
                         )
                     }
                 }
@@ -781,14 +781,14 @@ fun ExplorerScreen(
             content = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (first != null) {
-                        Text("Nome: ${first.name}", fontSize = 13.5.sp, color = Color.White, fontWeight = FontWeight.Bold)
-                        Text("Caminho: ${first.absolutePath}", fontSize = 12.sp, color = Color(0xFFB0B3B8))
-                        Text("Tipo: ${if (first.isDirectory) "Pasta" else "Arquivo (.${first.extension})"}", fontSize = 12.sp, color = Color(0xFFB0B3B8))
-                        Text("Tamanho: ${StorageManager.formatFileSize(selectedFiles.sumOf { if (it.isDirectory) 0L else it.length() })}", fontSize = 12.sp, color = Color(0xFFB0B3B8))
-                        Text("Modificado: ${StorageManager.formatDate(first.lastModified())}", fontSize = 12.sp, color = Color(0xFFB0B3B8))
-                        Text("Permissões: ${if (first.canRead()) "r" else "-"}${if (first.canWrite()) "w" else "-"}${if (first.canExecute()) "x" else "-"}", fontSize = 12.sp, color = Color(0xFFB0B3B8))
+                        Text("Nome: ${first.name}", fontSize = 13.5.sp, color = EsTextPrimary, fontWeight = FontWeight.Bold)
+                        Text("Caminho: ${first.absolutePath}", fontSize = 12.sp, color = EsTextSecondary)
+                        Text("Tipo: ${if (first.isDirectory) "Pasta" else "Arquivo (.${first.extension})"}", fontSize = 12.sp, color = EsTextSecondary)
+                        Text("Tamanho: ${StorageManager.formatFileSize(selectedFiles.sumOf { if (it.isDirectory) 0L else it.length() })}", fontSize = 12.sp, color = EsTextSecondary)
+                        Text("Modificado: ${StorageManager.formatDate(first.lastModified())}", fontSize = 12.sp, color = EsTextSecondary)
+                        Text("Permissões: ${if (first.canRead()) "r" else "-"}${if (first.canWrite()) "w" else "-"}${if (first.canExecute()) "x" else "-"}", fontSize = 12.sp, color = EsTextSecondary)
                         if (first.isFile) {
-                            Text("MD5: $md5", fontSize = 11.5.sp, color = Color(0xFF3FE0F0))
+                            Text("MD5: $md5", fontSize = 11.5.sp, color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.primary)
                         }
                     }
                     Spacer(Modifier.height(12.dp))
@@ -832,13 +832,13 @@ private fun ExplorerBottomActionItem(
             painter = painterResource(iconRes),
             contentDescription = title,
             modifier = Modifier.size(23.dp),
-            colorFilter = ColorFilter.tint(Color(0xFFE0E0E0))
+            colorFilter = ColorFilter.tint(EsTextPrimary.copy(alpha = 0.88f))
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = title,
             fontSize = 10.5.sp,
-            color = Color(0xFFB0B3B8),
+            color = EsTextSecondary,
             fontWeight = FontWeight.Normal
         )
     }

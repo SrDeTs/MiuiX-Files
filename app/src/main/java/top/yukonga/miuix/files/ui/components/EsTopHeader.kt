@@ -54,10 +54,15 @@ fun EsTopHeader(
         }
     }
 
+    val activePillBg = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surfaceContainerHighest
+    val inactivePillBg = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surfaceContainer
+    val primaryText = EsTextPrimary
+    val secondaryText = EsTextSecondary
+
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color(0xFF31353D))
+            .background(EsTopColor)
             .statusBarsPadding()
             .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -83,7 +88,7 @@ fun EsTopHeader(
                 painter = painterResource(menuIconRes),
                 contentDescription = "Menu",
                 modifier = Modifier.size(24.dp),
-                colorFilter = ColorFilter.tint(Color.White)
+                colorFilter = ColorFilter.tint(primaryText)
             )
         }
 
@@ -95,7 +100,7 @@ fun EsTopHeader(
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFF464A51))
+                    .background(activePillBg)
                     .pressable(
                         interactionSource = tabInteraction,
                         indication = SinkFeedback()
@@ -107,7 +112,7 @@ fun EsTopHeader(
                     painter = painterResource(R.drawable.icon_home_tab_home),
                     contentDescription = null,
                     modifier = Modifier.size(15.dp),
-                    colorFilter = ColorFilter.tint(Color.White)
+                    colorFilter = ColorFilter.tint(primaryText)
                 )
 
                 Spacer(modifier = Modifier.width(6.dp))
@@ -116,7 +121,7 @@ fun EsTopHeader(
                     text = tabTitle,
                     fontSize = 12.5.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color.White
+                    color = primaryText
                 )
 
                 Spacer(modifier = Modifier.width(8.dp))
@@ -131,7 +136,7 @@ fun EsTopHeader(
                     Text(
                         text = "✕",
                         fontSize = 11.sp,
-                        color = Color(0xFFB0B0B0)
+                        color = secondaryText
                     )
                 }
             }
@@ -152,7 +157,7 @@ fun EsTopHeader(
                         Row(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(16.dp))
-                                .background(Color(0xFF464A51))
+                                .background(activePillBg)
                                 .pressable(
                                     interactionSource = tabInteraction,
                                     indication = SinkFeedback()
@@ -169,7 +174,7 @@ fun EsTopHeader(
                                 painter = painterResource(tab.iconRes),
                                 contentDescription = null,
                                 modifier = Modifier.size(15.dp),
-                                colorFilter = if (tab.tintIcon) ColorFilter.tint(Color.White) else null
+                                colorFilter = if (tab.tintIcon) ColorFilter.tint(primaryText) else null
                             )
 
                             Spacer(modifier = Modifier.width(6.dp))
@@ -178,7 +183,7 @@ fun EsTopHeader(
                                 text = tab.title,
                                 fontSize = 12.5.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = Color.White
+                                color = primaryText
                             )
 
                             Spacer(modifier = Modifier.width(8.dp))
@@ -193,7 +198,7 @@ fun EsTopHeader(
                                 Text(
                                     text = "✕",
                                     fontSize = 11.sp,
-                                    color = Color(0xFFB0B0B0)
+                                    color = secondaryText
                                 )
                             }
                         }
@@ -202,7 +207,7 @@ fun EsTopHeader(
                         Row(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(16.dp))
-                                .background(Color(0xFF393D45))
+                                .background(inactivePillBg)
                                 .pressable(
                                     interactionSource = tabInteraction,
                                     indication = SinkFeedback()
@@ -219,14 +224,14 @@ fun EsTopHeader(
                                 painter = painterResource(tab.iconRes),
                                 contentDescription = tab.title,
                                 modifier = Modifier.size(15.dp),
-                                colorFilter = if (tab.tintIcon) ColorFilter.tint(Color(0xFFB0B3B8)) else null
+                                colorFilter = if (tab.tintIcon) ColorFilter.tint(secondaryText) else null
                             )
                             Spacer(modifier = Modifier.width(5.dp))
                             Text(
                                 text = tab.title,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Normal,
-                                color = Color(0xFFB0B3B8)
+                                color = secondaryText
                             )
                         }
                     }
@@ -238,7 +243,7 @@ fun EsTopHeader(
                         modifier = Modifier
                             .size(28.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF393D45))
+                            .background(inactivePillBg)
                             .pressable(interactionSource = addInteraction, indication = SinkFeedback())
                             .clickable(interactionSource = addInteraction, indication = null, onClick = onAddTab),
                         contentAlignment = Alignment.Center
@@ -247,7 +252,7 @@ fun EsTopHeader(
                             painter = painterResource(R.drawable.toolbar_new),
                             contentDescription = "Nova janela",
                             modifier = Modifier.size(14.dp),
-                            colorFilter = ColorFilter.tint(Color(0xFFD0D2D6))
+                            colorFilter = ColorFilter.tint(primaryText)
                         )
                     }
                 }

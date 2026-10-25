@@ -63,21 +63,21 @@ fun AppManagerScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onNavigateBack), contentAlignment = Alignment.Center) {
-                Image(androidx.compose.ui.res.painterResource(top.yukonga.miuix.files.R.drawable.toolbar_return), null, Modifier.size(24.dp), colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(androidx.compose.ui.graphics.Color.White))
+                Image(androidx.compose.ui.res.painterResource(top.yukonga.miuix.files.R.drawable.toolbar_return), null, Modifier.size(24.dp), colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(top.yukonga.miuix.files.ui.components.EsTextPrimary))
             }
             Spacer(Modifier.width(8.dp))
-            Text("Gerenciador de APPs (${filteredApps.size})", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = androidx.compose.ui.graphics.Color.White, modifier = Modifier.weight(1f))
+            Text("Gerenciador de APPs (${filteredApps.size})", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = top.yukonga.miuix.files.ui.components.EsTextPrimary, modifier = Modifier.weight(1f))
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .background(androidx.compose.ui.graphics.Color(0xFF464A51))
+                    .background(MiuixTheme.colorScheme.surfaceContainerHighest)
                     .clickable { filterUserOnly = !filterUserOnly }
                     .padding(horizontal = 10.dp, vertical = 6.dp)
             ) {
                 Text(
                     text = if (filterUserOnly) "Usuário" else "Todos",
                     fontSize = 12.sp,
-                    color = androidx.compose.ui.graphics.Color.White
+                    color = top.yukonga.miuix.files.ui.components.EsTextPrimary
                 )
             }
         }

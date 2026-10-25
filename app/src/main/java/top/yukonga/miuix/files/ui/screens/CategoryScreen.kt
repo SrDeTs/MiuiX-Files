@@ -32,7 +32,11 @@ import top.yukonga.miuix.files.core.model.SortOption
 import top.yukonga.miuix.files.core.storage.FileOperations
 import top.yukonga.miuix.files.core.storage.StorageManager
 import top.yukonga.miuix.files.ui.components.EsApkPropertiesDialog
+import top.yukonga.miuix.files.ui.components.EsBgColor
 import top.yukonga.miuix.files.ui.components.EsClipboardSideTab
+import top.yukonga.miuix.files.ui.components.EsDividerColor
+import top.yukonga.miuix.files.ui.components.EsTextPrimary
+import top.yukonga.miuix.files.ui.components.EsTextSecondary
 import top.yukonga.miuix.files.ui.components.EsTopHeader
 import top.yukonga.miuix.files.ui.components.EsWindowTab
 import top.yukonga.miuix.files.ui.components.FileGridItem
@@ -112,7 +116,7 @@ fun CategoryScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF292C2E))
+            .background(EsBgColor)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // 1:1 Top Bar with multi-tab switching and global drawer menu (☰)
@@ -143,7 +147,7 @@ fun CategoryScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF292C2E))
+                    .background(EsBgColor)
                     .padding(horizontal = 14.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -152,14 +156,14 @@ fun CategoryScreen(
                     text = "${category.label} (${files.size})",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = EsTextPrimary
                 )
 
                 // Right Gauge Chip
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF383D48))
+                        .background(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surfaceContainerHighest)
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -167,14 +171,14 @@ fun CategoryScreen(
                         painter = painterResource(R.drawable.toolbar_diskanalyzer_nomal),
                         contentDescription = null,
                         modifier = Modifier.size(13.dp),
-                        colorFilter = ColorFilter.tint(Color(0xFFB0B3B8))
+                        colorFilter = ColorFilter.tint(EsTextSecondary)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = "22%",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = EsTextPrimary
                     )
                 }
             }
@@ -370,14 +374,14 @@ fun CategoryScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFF292C2E))
+                        .background(EsBgColor)
                         .navigationBarsPadding()
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(1.dp)
-                            .background(Color(0xFF383C42))
+                            .background(EsDividerColor)
                     )
                     Row(
                         modifier = Modifier
@@ -450,12 +454,12 @@ fun CategoryScreen(
                                 text = "Mover para a Reciclagem",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = Color.White
+                                color = EsTextPrimary
                             )
                             Text(
                                 text = if (moveToRecycleBin) "Pode ser restaurado depois" else "Desmarcado: exclusão direta e permanente",
                                 fontSize = 11.5.sp,
-                                color = if (moveToRecycleBin) Color(0xFFB0B3B8) else Color(0xFFFF6B6B)
+                                color = if (moveToRecycleBin) EsTextSecondary else Color(0xFFFF6B6B)
                             )
                         }
                     }
@@ -578,13 +582,13 @@ private fun CategoryBottomItem(
             painter = painterResource(iconRes),
             contentDescription = title,
             modifier = Modifier.size(23.dp),
-            colorFilter = ColorFilter.tint(Color(0xFFE0E0E0))
+            colorFilter = ColorFilter.tint(EsTextPrimary.copy(alpha = 0.88f))
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = title,
             fontSize = 10.5.sp,
-            color = Color(0xFFB0B3B8),
+            color = EsTextSecondary,
             fontWeight = FontWeight.Normal
         )
     }

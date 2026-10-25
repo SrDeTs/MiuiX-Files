@@ -44,14 +44,13 @@ object MiuiXFilesPreferences {
 val LocalAppThemeMode = staticCompositionLocalOf { 0 }
 
 @Composable
-private fun rememberWallpaperOrSystemSeedColor(context: Context): Color? {
+fun rememberWallpaperOrSystemSeedColor(context: Context): Color {
     return remember(context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            // Android 12+ has native system_accent1_500, let platformDynamicColors handle it unless it's default purple
             runCatching {
                 val c = context.resources.getColor(android.R.color.system_accent1_500, context.theme)
                 Color(c)
-            }.getOrNull()
+            }.getOrDefault(Color(0xFF0073DD))
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             runCatching {
                 val wm = WallpaperManager.getInstance(context)

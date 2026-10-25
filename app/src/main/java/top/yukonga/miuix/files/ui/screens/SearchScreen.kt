@@ -134,10 +134,10 @@ private fun ColumnScope.FileRows(list: List<FileItem>, onOpen: (FileItem) -> Uni
                 FileThumbnail(f.file, iconFor(f), Modifier.size(40.dp).clip(RoundedCornerShape(4.dp)))
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(f.name, fontSize = 14.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(f.name, fontSize = 14.sp, color = EsTextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
                         "${relativeTime(f.lastModified)} • ${if (f.isDirectory) "Pasta" else StorageManager.formatFileSize(f.size)} • ${f.file.parent}",
-                        fontSize = 11.sp, color = Color(0xFFA0A3A6), maxLines = 1, overflow = TextOverflow.Ellipsis
+                        fontSize = 11.sp, color = EsTextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -153,10 +153,10 @@ fun EsSubScreen(title: String, onBack: () -> Unit, content: @Composable ColumnSc
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onBack), contentAlignment = Alignment.Center) {
-                Image(painterResource(R.drawable.toolbar_return), null, Modifier.size(24.dp), colorFilter = ColorFilter.tint(Color.White))
+                Image(painterResource(R.drawable.toolbar_return), null, Modifier.size(24.dp), colorFilter = ColorFilter.tint(EsTextPrimary))
             }
             Spacer(Modifier.width(8.dp))
-            Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = EsTextPrimary)
         }
         Column(Modifier.weight(1f).navigationBarsPadding(), content = content)
     }
@@ -345,8 +345,8 @@ fun ZipViewerScreen(zipFile: File, onBack: () -> Unit, onNavigateDir: (File) -> 
                         Image(painterResource(if (isDir) R.drawable.format_folder else R.drawable.format_document), null, Modifier.size(32.dp))
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(name.trimEnd('/'), fontSize = 13.5.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (!isDir) Text(StorageManager.formatFileSize(size), fontSize = 11.sp, color = Color(0xFFA0A3A6))
+                            Text(name.trimEnd('/'), fontSize = 13.5.sp, color = EsTextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (!isDir) Text(StorageManager.formatFileSize(size), fontSize = 11.sp, color = EsTextSecondary)
                         }
                     }
                 }
@@ -402,14 +402,14 @@ fun AudioPlayerScreen(file: File, onBack: () -> Unit) {
                 Modifier.fillMaxWidth(),
                 cornerRadius = 16.dp,
                 insideMargin = PaddingValues(24.dp),
-                colors = CardDefaults.defaultColors(color = EsCardColor, contentColor = Color.White)
+                colors = CardDefaults.defaultColors(color = EsCardColor, contentColor = EsTextPrimary)
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                     Image(painterResource(R.drawable.es_cat_music), null, Modifier.size(72.dp))
                     Spacer(Modifier.height(16.dp))
-                    Text(file.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(file.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = EsTextPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Spacer(Modifier.height(8.dp))
-                    Text("${fmt(posMs)} / ${fmt(durationMs)}", fontSize = 13.sp, color = Color(0xFF3FE0F0))
+                    Text("${fmt(posMs)} / ${fmt(durationMs)}", fontSize = 13.sp, color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.primary)
                     Spacer(Modifier.height(20.dp))
                     Button(
                         onClick = {
@@ -536,20 +536,20 @@ fun ViewOnPcScreen(onBack: () -> Unit) {
                 Modifier.fillMaxWidth(),
                 cornerRadius = 12.dp,
                 insideMargin = PaddingValues(20.dp),
-                colors = CardDefaults.defaultColors(color = EsCardColor, contentColor = Color.White)
+                colors = CardDefaults.defaultColors(color = EsCardColor, contentColor = EsTextPrimary)
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                     Image(painterResource(R.drawable.es_tool_viewpc), null, Modifier.size(56.dp))
                     Spacer(Modifier.height(12.dp))
                     Text(
                         if (running) "Servidor ativo na rede Wi-Fi" else "Servidor desligado",
-                        fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White
+                        fontSize = 16.sp, fontWeight = FontWeight.Bold, color = EsTextPrimary
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
                         if (running) "Abra no navegador do PC:\nhttp://$ip:$port"
                         else "Toque em Iniciar para acessar seus arquivos do celular no navegador do computador.",
-                        fontSize = 13.sp, color = Color(0xFF3FE0F0)
+                        fontSize = 13.sp, color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.primary
                     )
                     Spacer(Modifier.height(18.dp))
                     Button(
@@ -586,12 +586,12 @@ fun NetworkScreen(title: String, onBack: () -> Unit, onOpenPcServer: () -> Unit)
                     Modifier.fillMaxWidth(),
                     cornerRadius = 10.dp,
                     insideMargin = PaddingValues(16.dp),
-                    colors = CardDefaults.defaultColors(color = EsCardColor, contentColor = Color.White)
+                    colors = CardDefaults.defaultColors(color = EsCardColor, contentColor = EsTextPrimary)
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Status da Rede Local", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
-                        Text("Endereço IPv4: $ip", fontSize = 13.sp, color = Color(0xFF3FE0F0))
-                        Text("Interfaces ativas: ${interfaces.joinToString { it.displayName }.ifEmpty { "Wi-Fi / Dados" }}", fontSize = 12.sp, color = Color(0xFFA0A3A6))
+                        Text("Status da Rede Local", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = EsTextPrimary)
+                        Text("Endereço IPv4: $ip", fontSize = 13.sp, color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.primary)
+                        Text("Interfaces ativas: ${interfaces.joinToString { it.displayName }.ifEmpty { "Wi-Fi / Dados" }}", fontSize = 12.sp, color = EsTextSecondary)
                     }
                 }
             }
@@ -600,15 +600,15 @@ fun NetworkScreen(title: String, onBack: () -> Unit, onOpenPcServer: () -> Unit)
                     Modifier.fillMaxWidth(),
                     cornerRadius = 10.dp,
                     insideMargin = PaddingValues(16.dp),
-                    colors = CardDefaults.defaultColors(color = EsCardColor, contentColor = Color.White),
+                    colors = CardDefaults.defaultColors(color = EsCardColor, contentColor = EsTextPrimary),
                     onClick = onOpenPcServer
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Image(painterResource(R.drawable.es_tool_viewpc), null, Modifier.size(36.dp))
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("Servidor Remoto (Ver no PC)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
-                            Text("Compartilhar arquivos via HTTP na porta 8080", fontSize = 12.sp, color = Color(0xFFA0A3A6))
+                            Text("Servidor Remoto (Ver no PC)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = EsTextPrimary)
+                            Text("Compartilhar arquivos via HTTP na porta 8080", fontSize = 12.sp, color = EsTextSecondary)
                         }
                     }
                 }

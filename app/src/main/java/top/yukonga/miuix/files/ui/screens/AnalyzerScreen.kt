@@ -26,9 +26,13 @@ import top.yukonga.miuix.files.core.model.FileItem
 import top.yukonga.miuix.files.core.storage.StorageManager
 import top.yukonga.miuix.files.ui.components.CircularStorageGauge
 import top.yukonga.miuix.files.ui.components.EsCardColor
+import top.yukonga.miuix.files.ui.components.EsDividerColor
+import top.yukonga.miuix.files.ui.components.EsTextPrimary
+import top.yukonga.miuix.files.ui.components.EsTextSecondary
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import java.io.File
 
@@ -69,24 +73,24 @@ fun AnalyzerScreen(onBack: () -> Unit, onOpenDir: (File) -> Unit, onOpenFile: (F
             item {
                 Card(
                     Modifier.fillMaxWidth(), cornerRadius = 10.dp, insideMargin = PaddingValues(16.dp),
-                    colors = CardDefaults.defaultColors(color = EsCardColor, contentColor = Color.White)
+                    colors = CardDefaults.defaultColors(color = EsCardColor, contentColor = EsTextPrimary)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         val p = if (total > 0) used.toFloat() / total else 0f
                         CircularStorageGauge(p, (p * 100).toInt())
                         Spacer(Modifier.width(14.dp))
                         Column {
-                            Text("Armazenamento interno", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
-                            Text("Usado ${StorageManager.formatFileSize(used)} de ${StorageManager.formatFileSize(total)}", fontSize = 12.sp, color = Color(0xFFA0A3A6))
+                            Text("Armazenamento interno", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = EsTextPrimary)
+                            Text("Usado ${StorageManager.formatFileSize(used)} de ${StorageManager.formatFileSize(total)}", fontSize = 12.sp, color = EsTextSecondary)
                         }
                     }
                 }
             }
             val r = result
             if (r == null) {
-                item { Text("Analisando armazenamento...", color = Color(0xFFA0A3A6), fontSize = 13.sp, modifier = Modifier.padding(8.dp)) }
+                item { Text("Analisando armazenamento...", color = EsTextSecondary, fontSize = 13.sp, modifier = Modifier.padding(8.dp)) }
             } else {
-                item { Text("Pastas maiores", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2EC7E0)) }
+                item { Text("Pastas maiores", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MiuixTheme.colorScheme.primary) }
                 val maxDir = r.dirs.firstOrNull()?.second?.coerceAtLeast(1L) ?: 1L
                 items(r.dirs.take(15), key = { "d" + it.first.path }) { (d, size) ->
                     Column(
@@ -96,17 +100,17 @@ fun AnalyzerScreen(onBack: () -> Unit, onOpenDir: (File) -> Unit, onOpenFile: (F
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Image(painterResource(R.drawable.format_folder), null, Modifier.size(30.dp))
                             Spacer(Modifier.width(10.dp))
-                            Text(d.name, fontSize = 13.5.sp, color = Color.White, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(StorageManager.formatFileSize(size), fontSize = 12.5.sp, color = Color(0xFFA0A3A6))
+                            Text(d.name, fontSize = 13.5.sp, color = EsTextPrimary, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(StorageManager.formatFileSize(size), fontSize = 12.5.sp, color = EsTextSecondary)
                         }
                         Spacer(Modifier.height(6.dp))
-                        Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0xFF3A3D40))) {
-                            Box(Modifier.fillMaxWidth(size.toFloat() / maxDir).fillMaxHeight().background(Color(0xFF2F7DF6)))
+                        Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(EsDividerColor)) {
+                            Box(Modifier.fillMaxWidth(size.toFloat() / maxDir).fillMaxHeight().background(MiuixTheme.colorScheme.primary))
                         }
                     }
                 }
-                item { Text("Arquivos grandes (> 10 MB)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2EC7E0), modifier = Modifier.padding(top = 6.dp)) }
-                if (r.bigFiles.isEmpty()) item { Text("Nenhum arquivo grande", color = Color(0xFFA0A3A6), fontSize = 12.sp) }
+                item { Text("Arquivos grandes (> 10 MB)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MiuixTheme.colorScheme.primary, modifier = Modifier.padding(top = 6.dp)) }
+                if (r.bigFiles.isEmpty()) item { Text("Nenhum arquivo grande", color = EsTextSecondary, fontSize = 12.sp) }
                 items(r.bigFiles, key = { "f" + it.path }) { f ->
                     Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(EsCardColor)
@@ -116,10 +120,10 @@ fun AnalyzerScreen(onBack: () -> Unit, onOpenDir: (File) -> Unit, onOpenFile: (F
                         Image(painterResource(iconFor(f)), null, Modifier.size(30.dp))
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(f.name, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(f.file.parent ?: "", fontSize = 10.5.sp, color = Color(0xFF8A8D91), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(f.name, fontSize = 13.sp, color = EsTextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(f.file.parent ?: "", fontSize = 10.5.sp, color = EsTextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
-                        Text(StorageManager.formatFileSize(f.size), fontSize = 12.5.sp, color = Color(0xFFA0A3A6))
+                        Text(StorageManager.formatFileSize(f.size), fontSize = 12.5.sp, color = EsTextSecondary)
                     }
                 }
             }

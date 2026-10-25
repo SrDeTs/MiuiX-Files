@@ -171,16 +171,16 @@ fun HomeScreen(
                     Card(
                         Modifier.fillMaxWidth(), cornerRadius = 10.dp,
                         insideMargin = PaddingValues(horizontal = 10.dp, vertical = 13.dp),
-                        colors = CardDefaults.defaultColors(color = EsCardColor, contentColor = Color.White),
+                        colors = CardDefaults.defaultColors(color = EsCardColor, contentColor = EsTextPrimary),
                         pressFeedbackType = PressFeedbackType.Sink, onClick = onAnalyzer
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Image(painterResource(R.drawable.es_icon_analyse_pie), null, Modifier.size(38.dp))
                             Spacer(Modifier.width(10.dp))
                             Column {
-                                Text("Analis. de espaço", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xCCFFFFFF))
+                                Text("Analis. de espaço", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = EsTextPrimary.copy(alpha = 0.88f))
                                 Spacer(Modifier.height(2.dp))
-                                Text("mais arquivos para limpar", fontSize = 10.sp, color = Color(0xFF999999))
+                                Text("mais arquivos para limpar", fontSize = 10.sp, color = EsTextSecondary)
                             }
                         }
                     }
@@ -204,17 +204,17 @@ fun HomeScreen(
                     Card(
                         Modifier.fillMaxWidth(), cornerRadius = 10.dp,
                         insideMargin = PaddingValues(start = 14.dp, end = 14.dp, top = 16.dp, bottom = 6.dp),
-                        colors = CardDefaults.defaultColors(color = EsCardColor, contentColor = Color.White)
+                        colors = CardDefaults.defaultColors(color = EsCardColor, contentColor = EsTextPrimary)
                     ) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text("Arquivado Recentemente:", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE6E6E6), modifier = Modifier.weight(1f))
+                            Text("Arquivado Recentemente:", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = EsTextPrimary, modifier = Modifier.weight(1f))
                             Image(
                                 painterResource(if (showRecent) R.drawable.toolbar_show else R.drawable.toolbar_hide), null,
                                 Modifier.size(22.dp).clip(RoundedCornerShape(6.dp)).clickable {
                                     showRecent = !showRecent
                                     prefs.edit().putBoolean(top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences.KEY_SHOW_RECENTS_HOME, showRecent).apply()
                                 },
-                                colorFilter = ColorFilter.tint(Color(0xFF8A8D91))
+                                colorFilter = ColorFilter.tint(EsTextSecondary)
                             )
                         }
                         AnimatedVisibility(
@@ -224,10 +224,10 @@ fun HomeScreen(
                         ) {
                             Column {
                                 if (groups.isEmpty()) {
-                                    Text("Nenhum arquivo recente", fontSize = 12.sp, color = Color(0xFF8A8D91), modifier = Modifier.padding(vertical = 16.dp))
+                                    Text("Nenhum arquivo recente", fontSize = 12.sp, color = EsTextSecondary, modifier = Modifier.padding(vertical = 16.dp))
                                 }
                                 groups.take(6).forEachIndexed { i, g ->
-                                    if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF3A3D40)))
+                                    if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(EsDividerColor))
                                     RecentGroupBlock(g, onOpenFile, onNavigateDir)
                                 }
                             }
@@ -335,10 +335,10 @@ private fun RecentGroupBlock(g: RecentGroup, onOpenFile: (File) -> Unit, onNavig
             Modifier.fillMaxWidth().clickable { onNavigateDir(g.folder) },
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(g.time, fontSize = 12.sp, color = Color(0xFF2EC7E0))
+            Text(g.time, fontSize = 12.sp, color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.primary)
             Spacer(Modifier.width(12.dp))
-            Text(g.label, fontSize = 12.sp, color = Color(0xFFA0A3A6), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            Text("›", fontSize = 18.sp, color = Color(0xFF8A8D91))
+            Text(g.label, fontSize = 12.sp, color = EsTextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text("›", fontSize = 18.sp, color = EsTextSecondary)
         }
         Spacer(Modifier.height(10.dp))
         if (g.media) {
@@ -359,8 +359,8 @@ private fun RecentGroupBlock(g: RecentGroup, onOpenFile: (File) -> Unit, onNavig
                     Image(painterResource(iconFor(f)), null, Modifier.size(36.dp))
                     Spacer(Modifier.width(10.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(f.name, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(StorageManager.formatFileSize(f.size), fontSize = 10.5.sp, color = Color(0xFFA0A3A6))
+                        Text(f.name, fontSize = 13.sp, color = EsTextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(StorageManager.formatFileSize(f.size), fontSize = 10.5.sp, color = EsTextSecondary)
                     }
                 }
             }
@@ -378,13 +378,13 @@ fun EsDrawer(
             Modifier.fillMaxWidth().background(EsTopColor).statusBarsPadding().padding(horizontal = 16.dp, vertical = 24.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(Modifier.size(42.dp).clip(RoundedCornerShape(21.dp)).background(Color(0xFFEDEDED)), contentAlignment = Alignment.Center) {
-                Image(painterResource(R.drawable.toolbar_user), null, Modifier.size(24.dp), colorFilter = ColorFilter.tint(Color(0xFF31353D)))
+            Box(Modifier.size(42.dp).clip(RoundedCornerShape(21.dp)).background(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+                Image(painterResource(R.drawable.toolbar_user), null, Modifier.size(24.dp), colorFilter = ColorFilter.tint(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.primary))
             }
             Spacer(Modifier.width(14.dp))
             Column {
-                Text("MiuiX Files", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                Text("Gerenciador de arquivos", fontSize = 11.sp, color = Color(0xFFB0B3B8))
+                Text("MiuiX Files", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = EsTextPrimary)
+                Text("Gerenciador de arquivos", fontSize = 11.sp, color = EsTextSecondary)
             }
         }
         LazyColumn(Modifier.weight(1f)) {
@@ -417,22 +417,22 @@ fun EsDrawer(
 
 @Composable
 private fun DrawerSection(t: String) =
-    Text(t, fontSize = 12.sp, color = Color(0xFF8A8D91), modifier = Modifier.padding(start = 18.dp, top = 16.dp, bottom = 6.dp))
+    Text(t, fontSize = 12.sp, color = EsTextSecondary, modifier = Modifier.padding(start = 18.dp, top = 16.dp, bottom = 6.dp))
 
 @Composable
 private fun DrawerItem(icon: Int, title: String, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 18.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Image(painterResource(icon), null, Modifier.size(22.dp), colorFilter = ColorFilter.tint(Color(0xFFD0D2D6)))
+        Image(painterResource(icon), null, Modifier.size(22.dp), colorFilter = ColorFilter.tint(EsTextPrimary.copy(alpha = 0.85f)))
         Spacer(Modifier.width(18.dp))
-        Text(title, fontSize = 14.sp, color = Color(0xFFE6E6E6))
+        Text(title, fontSize = 14.sp, color = EsTextPrimary)
     }
 }
 
 @Composable
 private fun DrawerBottom(icon: Int, title: String, modifier: Modifier, onClick: () -> Unit) {
     Column(modifier.clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
-        Image(painterResource(icon), null, Modifier.size(20.dp), colorFilter = ColorFilter.tint(Color(0xFF8A8D91)))
+        Image(painterResource(icon), null, Modifier.size(20.dp), colorFilter = ColorFilter.tint(EsTextSecondary))
         Spacer(Modifier.height(4.dp))
-        Text(title, fontSize = 12.sp, color = Color(0xFFE6E6E6), textAlign = TextAlign.Center)
+        Text(title, fontSize = 12.sp, color = EsTextPrimary, textAlign = TextAlign.Center)
     }
 }

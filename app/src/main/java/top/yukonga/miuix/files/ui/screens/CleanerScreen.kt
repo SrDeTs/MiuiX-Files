@@ -25,6 +25,8 @@ import top.yukonga.miuix.files.core.cleaner.CleanerEngine
 import top.yukonga.miuix.files.core.storage.StorageManager
 import top.yukonga.miuix.files.ui.components.EsBgColor
 import top.yukonga.miuix.files.ui.components.EsCardColor
+import top.yukonga.miuix.files.ui.components.EsTextPrimary
+import top.yukonga.miuix.files.ui.components.EsTextSecondary
 import top.yukonga.miuix.files.ui.components.EsTopColor
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
@@ -66,12 +68,12 @@ fun CleanerScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onNavigateBack), contentAlignment = Alignment.Center) {
-                Image(painterResource(R.drawable.toolbar_return), null, Modifier.size(24.dp), colorFilter = ColorFilter.tint(Color.White))
+                Image(painterResource(R.drawable.toolbar_return), null, Modifier.size(24.dp), colorFilter = ColorFilter.tint(EsTextPrimary))
             }
             Spacer(Modifier.width(8.dp))
-            Text("Analis. de espaço / Cleaner", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+            Text("Analis. de espaço / Cleaner", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = EsTextPrimary, modifier = Modifier.weight(1f))
             Box(Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)).clickable { runScan(force = true) }, contentAlignment = Alignment.Center) {
-                Image(painterResource(R.drawable.toolbar_refresh), null, Modifier.size(22.dp), colorFilter = ColorFilter.tint(Color.White))
+                Image(painterResource(R.drawable.toolbar_refresh), null, Modifier.size(22.dp), colorFilter = ColorFilter.tint(EsTextPrimary))
             }
         }
 
@@ -85,7 +87,7 @@ fun CleanerScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     cornerRadius = 12.dp,
-                    colors = CardDefaults.defaultColors(color = EsCardColor, contentColor = Color.White)
+                    colors = CardDefaults.defaultColors(color = EsCardColor, contentColor = EsTextPrimary)
                 ) {
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(22.dp),
@@ -104,20 +106,20 @@ fun CleanerScreen(
                                 text = "Analisando arquivos residuais...",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = Color.White
+                                color = EsTextPrimary
                             )
                         } else if (cleanedTotalBytes != null) {
                             Text(
                                 text = "Limpeza concluída!",
                                 fontSize = 19.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF3FE0F0)
+                                color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "Liberados ${StorageManager.formatFileSize(cleanedTotalBytes!!)} de espaço.",
                                 fontSize = 13.sp,
-                                color = Color(0xFFA0A3A6)
+                                color = EsTextSecondary
                             )
                         } else {
                             val totalBytes = scanResult?.totalReclaimableBytes ?: 0L
@@ -125,13 +127,13 @@ fun CleanerScreen(
                                 text = StorageManager.formatFileSize(totalBytes),
                                 fontSize = 26.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (totalBytes > 0) Color(0xFF3FE0F0) else Color(0xFF2F7DF6)
+                                color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = if (totalBytes > 0) "Lixo eletrônico e cache que podem ser limpos" else "Nenhum arquivo residual encontrado",
                                 fontSize = 12.5.sp,
-                                color = Color(0xFFA0A3A6)
+                                color = EsTextSecondary
                             )
                         }
                     }
@@ -143,7 +145,7 @@ fun CleanerScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         cornerRadius = 10.dp,
-                        colors = CardDefaults.defaultColors(color = EsCardColor, contentColor = Color.White)
+                        colors = CardDefaults.defaultColors(color = EsCardColor, contentColor = EsTextPrimary)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -155,20 +157,20 @@ fun CleanerScreen(
                                     text = cat.title,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp,
-                                    color = Color.White
+                                    color = EsTextPrimary
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = "${cat.files.size} itens • ${cat.description}",
                                     fontSize = 11.5.sp,
-                                    color = Color(0xFFA0A3A6)
+                                    color = EsTextSecondary
                                 )
                             }
                             Text(
                                 text = StorageManager.formatFileSize(cat.totalSize),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
-                                color = Color(0xFF3FE0F0)
+                                color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.primary
                             )
                         }
                     }
