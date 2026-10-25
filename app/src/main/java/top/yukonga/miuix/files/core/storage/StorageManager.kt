@@ -42,7 +42,7 @@ object StorageManager {
         val freePrimary = primaryDir.freeSpace
         volumes.add(
             StorageVolumeInfo(
-                title = "Armazenamento Interno",
+                title = "Interno",
                 path = primaryDir,
                 totalBytes = totalPrimary,
                 freeBytes = freePrimary,
@@ -61,7 +61,7 @@ object StorageManager {
                 if (root.exists() && root.canRead()) {
                     volumes.add(
                         StorageVolumeInfo(
-                            title = "Armazenamento Interno",
+                            title = "Cartão SD",
                             path = root,
                             totalBytes = root.totalSpace,
                             freeBytes = root.freeSpace,
