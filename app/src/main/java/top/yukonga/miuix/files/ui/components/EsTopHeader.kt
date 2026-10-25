@@ -49,8 +49,13 @@ fun EsTopHeader(
 ) {
     val scrollState = rememberScrollState()
     LaunchedEffect(activeTabId, tabs.size) {
-        if (tabs.isNotEmpty()) {
-            scrollState.animateScrollTo(scrollState.maxValue)
+        if (tabs.size > 1) {
+            val activeIdx = tabs.indexOfFirst { it.id == activeTabId }
+            if (activeIdx == 0) {
+                scrollState.animateScrollTo(0)
+            } else if (activeIdx == tabs.lastIndex) {
+                scrollState.animateScrollTo(scrollState.maxValue)
+            }
         }
     }
 
@@ -234,26 +239,6 @@ fun EsTopHeader(
                                 color = secondaryText
                             )
                         }
-                    }
-                }
-
-                if (onAddTab != null) {
-                    val addInteraction = remember { MutableInteractionSource() }
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(inactivePillBg)
-                            .pressable(interactionSource = addInteraction, indication = SinkFeedback())
-                            .clickable(interactionSource = addInteraction, indication = null, onClick = onAddTab),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            painter = painterResource(R.drawable.toolbar_new),
-                            contentDescription = "Nova janela",
-                            modifier = Modifier.size(14.dp),
-                            colorFilter = ColorFilter.tint(primaryText)
-                        )
                     }
                 }
             }

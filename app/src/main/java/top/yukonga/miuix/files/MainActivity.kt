@@ -89,12 +89,10 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MiuiXFilesTheme {
-                // Multi-window tabs (like ES File Explorer: Página Inicial + Local + Categories)
                 val defaultLocalDir = remember { Environment.getExternalStorageDirectory() }
                 val windows = remember {
                     mutableStateListOf(
-                        WindowSession(id = "home", screen = Screen.Home),
-                        WindowSession(id = "local_default", screen = Screen.Explorer(defaultLocalDir))
+                        WindowSession(id = "home", screen = Screen.Home)
                     )
                 }
                 var activeWindowIndex by remember { mutableIntStateOf(0) }
