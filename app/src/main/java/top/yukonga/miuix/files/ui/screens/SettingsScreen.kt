@@ -6,12 +6,9 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,7 +19,6 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
@@ -39,26 +35,14 @@ import top.yukonga.miuix.files.ui.components.EsTextSecondary
 import top.yukonga.miuix.files.ui.components.EsTopColor
 import top.yukonga.miuix.files.ui.components.clearThumbnailCache
 import top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences
-import top.yukonga.miuix.files.ui.theme.rememberWallpaperOrSystemSeedColor
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.SinkFeedback
 import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.pressable
 import java.io.File
-
-private data class ThemeOptionPreview(
-    val mode: Int,
-    val title: String,
-    val subtitle: String,
-    val bgSwatch: Color,
-    val cardSwatch: Color,
-    val accentSwatch: Color
-)
 
 @Composable
 fun SettingsScreen(
@@ -68,7 +52,6 @@ fun SettingsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val prefs = remember(context) { context.getSharedPreferences(MiuiXFilesPreferences.PREFS_NAME, Context.MODE_PRIVATE) }
-    val monetSeed = rememberWallpaperOrSystemSeedColor(context)
 
     BackHandler(onBack = onNavigateBack)
 
@@ -112,71 +95,18 @@ fun SettingsScreen(
         refreshMetrics()
     }
 
-    val themeOptions = remember(monetSeed) {
-        listOf(
-            ThemeOptionPreview(
-                mode = 0,
-                title = "ES Dark",
-                subtitle = "Padrão 1:1",
-                bgSwatch = Color(0xFF292C2E),
-                cardSwatch = Color(0xFF31353D),
-                accentSwatch = Color(0xFF2EC7E0)
-            ),
-            ThemeOptionPreview(
-                mode = 1,
-                title = "MIUIX Escuro",
-                subtitle = "HyperOS Dark",
-                bgSwatch = Color(0xFF000000),
-                cardSwatch = Color(0xFF1C1C1E),
-                accentSwatch = Color(0xFF277AF7)
-            ),
-            ThemeOptionPreview(
-                mode = 2,
-                title = "MIUIX Claro",
-                subtitle = "HyperOS Light",
-                bgSwatch = Color(0xFFF2F3F7),
-                cardSwatch = Color(0xFFFFFFFF),
-                accentSwatch = Color(0xFF3482FF)
-            ),
-            ThemeOptionPreview(
-                mode = 3,
-                title = "Monet Escuro",
-                subtitle = "Cor do Android",
-                bgSwatch = Color(0xFF14161A),
-                cardSwatch = Color(0xFF20242B),
-                accentSwatch = monetSeed
-            ),
-            ThemeOptionPreview(
-                mode = 4,
-                title = "Monet Claro",
-                subtitle = "Cor do Android",
-                bgSwatch = Color(0xFFF4F6FA),
-                cardSwatch = Color(0xFFFFFFFF),
-                accentSwatch = monetSeed
-            ),
-            ThemeOptionPreview(
-                mode = 5,
-                title = "Automático",
-                subtitle = "Seguir Sistema",
-                bgSwatch = Color(0xFF1C1C1E),
-                cardSwatch = Color(0xFFF2F3F7),
-                accentSwatch = Color(0xFF3482FF)
-            )
-        )
-    }
-
     val themeDropdownNames = remember {
         listOf(
-            "ES Dark (Clássico - Padrão)",
-            "MIUIX Escuro (HyperOS Dark)",
-            "MIUIX Claro (HyperOS Light)",
-            "Monet Escuro (Cor do Android)",
-            "Monet Claro (Cor do Android)",
-            "Seguir Sistema (Automático)"
+            "ES Dark (Padrão)",
+            "MIUIX Escuro",
+            "MIUIX Claro",
+            "Monet Escuro",
+            "Monet Claro",
+            "Automático (Sistema)"
         )
     }
-    val viewModeItems = remember { listOf("Grade Padrão (4 colunas)", "Grade Compacta (5 colunas)", "Lista Detalhada") }
-    val sortItems = remember { listOf("Nome (A → Z)", "Nome (Z → A)", "Data (Mais recente)", "Tamanho (Maior primeiro)", "Tipo / Extensão") }
+    val viewModeItems = remember { listOf("Grade (4 colunas)", "Grade (5 colunas)", "Lista Detalhada") }
+    val sortItems = remember { listOf("Nome (A → Z)", "Nome (Z → A)", "Data (Recente)", "Tamanho (Maior)", "Tipo / Extensão") }
 
     val cardColors = CardDefaults.defaultColors(
         color = EsCardColor,
@@ -225,122 +155,9 @@ fun SettingsScreen(
             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // 1. ESTILO VISUAL E TEMAS
+            // 1. EXIBIÇÃO E ORDENAÇÃO (1 único seletor limpo de Tema + Exibição)
             item {
-                SmallTitle(text = "Aparência e Tema")
-                Spacer(modifier = Modifier.height(6.dp))
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    cornerRadius = 16.dp,
-                    colors = cardColors
-                ) {
-                    Column(modifier = Modifier.padding(top = 14.dp, bottom = 6.dp)) {
-                        // Visual Theme Grid Selector (2 rows x 3 cols)
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            themeOptions.chunked(3).forEach { rowItems ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    rowItems.forEach { opt ->
-                                        val selected = themeMode == opt.mode
-                                        val interaction = remember { MutableInteractionSource() }
-                                        val borderColor = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.dividerLine
-                                        val containerBg = if (selected) {
-                                            MiuixTheme.colorScheme.primary.copy(alpha = 0.14f)
-                                        } else {
-                                            MiuixTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.55f)
-                                        }
-
-                                        Column(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clip(RoundedCornerShape(12.dp))
-                                                .background(containerBg)
-                                                .border(
-                                                    width = if (selected) 1.8.dp else 1.dp,
-                                                    color = borderColor,
-                                                    shape = RoundedCornerShape(12.dp)
-                                                )
-                                                .pressable(interactionSource = interaction, indication = SinkFeedback())
-                                                .clickable(interactionSource = interaction, indication = null) {
-                                                    themeMode = opt.mode
-                                                    prefs.edit().putInt(MiuiXFilesPreferences.KEY_THEME_MODE, opt.mode).apply()
-                                                }
-                                                .padding(horizontal = 8.dp, vertical = 10.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally
-                                        ) {
-                                            // Mini preview swatch
-                                            Row(
-                                                modifier = Modifier
-                                                    .height(24.dp)
-                                                    .clip(RoundedCornerShape(12.dp))
-                                                    .background(opt.bgSwatch)
-                                                    .border(1.dp, Color(0x33888888), RoundedCornerShape(12.dp))
-                                                    .padding(horizontal = 6.dp),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                            ) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(10.dp)
-                                                        .clip(CircleShape)
-                                                        .background(opt.cardSwatch)
-                                                        .border(0.5.dp, Color(0x44888888), CircleShape)
-                                                )
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(10.dp)
-                                                        .clip(CircleShape)
-                                                        .background(opt.accentSwatch)
-                                                )
-                                            }
-                                            Spacer(modifier = Modifier.height(6.dp))
-                                            Text(
-                                                text = opt.title,
-                                                fontSize = 12.sp,
-                                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                                color = if (selected) MiuixTheme.colorScheme.primary else EsTextPrimary,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                            Text(
-                                                text = opt.subtitle,
-                                                fontSize = 10.sp,
-                                                color = EsTextSecondary,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        OverlayDropdownPreference(
-                            title = "Tema Ativo",
-                            summary = "ES Dark é o padrão; alterne para MIUIX ou Monet do Android",
-                            items = themeDropdownNames,
-                            selectedIndex = themeMode.coerceIn(0, themeDropdownNames.lastIndex),
-                            onSelectedIndexChange = { index ->
-                                themeMode = index
-                                prefs.edit().putInt(MiuiXFilesPreferences.KEY_THEME_MODE, index).apply()
-                            }
-                        )
-                    }
-                }
-            }
-
-            // 2. NAVEGAÇÃO E EXIBIÇÃO
-            item {
-                SmallTitle(text = "Exibição e Ordenação")
+                SmallTitle(text = "Exibição e Aparência")
                 Spacer(modifier = Modifier.height(6.dp))
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -348,6 +165,16 @@ fun SettingsScreen(
                     colors = cardColors
                 ) {
                     Column {
+                        OverlayDropdownPreference(
+                            title = "Tema do Aplicativo",
+                            summary = "Estilo visual da interface",
+                            items = themeDropdownNames,
+                            selectedIndex = themeMode.coerceIn(0, themeDropdownNames.lastIndex),
+                            onSelectedIndexChange = { index ->
+                                themeMode = index
+                                prefs.edit().putInt(MiuiXFilesPreferences.KEY_THEME_MODE, index).apply()
+                            }
+                        )
                         OverlayDropdownPreference(
                             title = "Modo de Visualização Padrão",
                             summary = "Layout inicial ao abrir pastas no explorador",
