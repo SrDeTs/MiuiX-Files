@@ -26,6 +26,12 @@ private val thumbCache = LruCache<String, ImageBitmap>(350)
 private val imageExt = setOf("jpg", "jpeg", "png", "webp", "gif", "bmp", "heic")
 private val videoExt = setOf("mp4", "mkv", "avi", "mov", "3gp", "webm")
 
+fun clearThumbnailCache(): Int {
+    val count = thumbCache.size()
+    thumbCache.evictAll()
+    return count
+}
+
 private val knownAppFolders = mapOf(
     "mt2" to "bin.mt.plus",
     "whatsapp" to "com.whatsapp",
@@ -39,6 +45,8 @@ private val knownAppFolders = mapOf(
 fun isMediaFile(f: File) = f.extension.lowercase().let { it in imageExt || it in videoExt || it == "apk" }
 
 fun loadFolderAppBitmap(context: Context, folder: File): ImageBitmap? {
+    val prefs = context.getSharedPreferences(top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences.PREFS_NAME, Context.MODE_PRIVATE)
+    if (!prefs.getBoolean(top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences.KEY_SHOW_FOLDER_APP_ICONS, true)) return null
     val nameLower = folder.name.lowercase()
     val key = "folder_app:$nameLower"
     thumbCache.get(key)?.let { return it }
@@ -120,11 +128,13 @@ fun loadApkIconBitmap(context: Context, apkFile: File): ImageBitmap? {
 @Composable
 fun FileThumbnail(file: File, fallbackRes: Int, modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val prefs = remember(context) { context.getSharedPreferences(top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences.PREFS_NAME, Context.MODE_PRIVATE) }
+    val showThumbnails = prefs.getBoolean(top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences.KEY_SHOW_THUMBNAILS, true)
     val ext = file.extension.lowercase()
     val key = if (ext == "apk") "apk_icon:${file.path}" else file.path
-    var bmp by remember(key) { mutableStateOf(thumbCache.get(key)) }
-    LaunchedEffect(key) {
-        if (bmp != null || !isMediaFile(file)) return@LaunchedEffect
+    var bmp by remember(key, showThumbnails) { mutableStateOf(if (showThumbnails) thumbCache.get(key) else null) }
+    LaunchedEffect(key, showThumbnails) {
+        if (!showThumbnails || bmp != null || !isMediaFile(file)) return@LaunchedEffect
         bmp = withContext(thumbDispatcher) {
             thumbCache.get(key) ?: runCatching {
                 if (ext == "apk") {

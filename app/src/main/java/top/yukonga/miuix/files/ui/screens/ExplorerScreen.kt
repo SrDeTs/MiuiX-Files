@@ -65,9 +65,23 @@ fun ExplorerScreen(
     var files by remember(initialDir) { mutableStateOf(StorageManager.getCachedDir(initialDir) ?: emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
     var showHidden by remember { mutableStateOf(prefs.getBoolean(MiuiXFilesPreferences.KEY_SHOW_HIDDEN, false)) }
-    var currentSort by remember { mutableStateOf(SortOption.NAME_ASC) }
+    val savedSortIndex = remember(prefs) { prefs.getInt(MiuiXFilesPreferences.KEY_SORT_OPTION, 0) }
+    val initialSort = remember(savedSortIndex) {
+        when (savedSortIndex) {
+            1 -> SortOption.NAME_DESC
+            2 -> SortOption.DATE_DESC
+            3 -> SortOption.SIZE_DESC
+            4 -> SortOption.TYPE_ASC
+            else -> SortOption.NAME_ASC
+        }
+    }
+    var currentSort by remember { mutableStateOf(initialSort) }
     var selectedPaths by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var isGridView by remember { mutableStateOf(true) } // Default to 4-column Grid matching ES File Explorer
+    val defaultViewMode = remember(prefs) { prefs.getInt(MiuiXFilesPreferences.KEY_DEFAULT_VIEW_MODE, 0) }
+    var isGridView by remember { mutableStateOf(defaultViewMode != 2) } // 0: 4-col Grid, 1: 5-col Compact Grid, 2: Detailed List
+    val gridColumnCount = if (defaultViewMode == 1) 5 else 4
+    val foldersFirst = remember(prefs) { prefs.getBoolean(MiuiXFilesPreferences.KEY_FOLDERS_FIRST, true) }
+    val pinMediaFolders = remember(prefs) { prefs.getBoolean(MiuiXFilesPreferences.KEY_PIN_MEDIA_FOLDERS, true) }
     val isSelectionMode = selectedPaths.isNotEmpty()
 
     var showNewFolderDialog by remember { mutableStateOf(false) }
@@ -118,11 +132,11 @@ fun ExplorerScreen(
         }
     }
 
-    val displayFiles = remember(files, searchQuery, currentDir, currentSort) {
+    val displayFiles = remember(files, searchQuery, currentDir, currentSort, foldersFirst, pinMediaFolders) {
         val base = if (searchQuery.isBlank()) files
         else files.filter { it.name.contains(searchQuery, ignoreCase = true) }
 
-        if (currentSort == SortOption.NAME_ASC && (currentDir.name == "0" || currentDir.absolutePath == "/sdcard")) {
+        if (pinMediaFolders && currentSort == SortOption.NAME_ASC && (currentDir.name == "0" || currentDir.absolutePath == "/sdcard")) {
             val pinned = listOf("dcim", "download")
             val dirs = base.filter { it.isDirectory }
             val nonDirs = base.filter { !it.isDirectory }
@@ -130,6 +144,8 @@ fun ExplorerScreen(
                 .sortedBy { pinned.indexOf(it.name.lowercase()) }
             val otherDirs = dirs.filter { it.name.lowercase() !in pinned }
             pinnedDirs + otherDirs + nonDirs
+        } else if (!foldersFirst) {
+            base.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
         } else {
             base
         }
@@ -246,9 +262,9 @@ fun ExplorerScreen(
                             )
                         }
                     } else if (gridMode) {
-                        // 1:1 4-Column Grid View with MIUIX overScrollVertical
+                        // 1:1 4-Column (or 5-Column Compact) Grid View with MIUIX overScrollVertical
                         LazyVerticalGrid(
-                            columns = GridCells.Fixed(4),
+                            columns = GridCells.Fixed(gridColumnCount),
                             modifier = Modifier.fillMaxSize().overScrollVertical(),
                             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -530,7 +546,8 @@ fun ExplorerScreen(
 
     // Delete Confirmation Dialog (1:1 ES File Explorer with "Mover para a Reciclagem" checkbox vs direct permanent deletion)
     if (showDeleteDialog) {
-        var moveToRecycleBin by remember { mutableStateOf(true) }
+        val defaultRecycle = remember(prefs) { prefs.getBoolean(MiuiXFilesPreferences.KEY_USE_RECYCLE_BIN, true) }
+        var moveToRecycleBin by remember(defaultRecycle) { mutableStateOf(defaultRecycle) }
         OverlayDialog(
             show = showDeleteDialog,
             onDismissRequest = { showDeleteDialog = false },

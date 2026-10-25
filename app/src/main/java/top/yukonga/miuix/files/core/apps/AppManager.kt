@@ -84,7 +84,9 @@ object AppManager {
 
     suspend fun backupApp(context: Context, app: InstalledAppItem): Result<File> = withContext(Dispatchers.IO) {
         try {
-            val backupDir = File(Environment.getExternalStorageDirectory(), "AppBackup")
+            val prefs = context.getSharedPreferences(top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences.PREFS_NAME, Context.MODE_PRIVATE)
+            val customRelPath = prefs.getString(top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences.KEY_BACKUP_DIR, "backups/apps") ?: "backups/apps"
+            val backupDir = if (customRelPath.startsWith("/")) File(customRelPath) else File(Environment.getExternalStorageDirectory(), customRelPath)
             if (!backupDir.exists()) backupDir.mkdirs()
 
             val sanitizedName = app.appName.replace("[^a-zA-Z0-9.-]".toRegex(), "_")

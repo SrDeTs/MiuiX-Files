@@ -115,9 +115,10 @@ fun HomeScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val prefs = remember(context) { context.getSharedPreferences(top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE) }
     var volumes by remember { mutableStateOf(StorageManager.getCachedVolumes() ?: StorageManager.getStorageVolumes(context)) }
     var recentFiles by remember { mutableStateOf(StorageManager.getCachedRecents() ?: emptyList()) }
-    var showRecent by remember { mutableStateOf(true) }
+    var showRecent by remember { mutableStateOf(prefs.getBoolean(top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences.KEY_SHOW_RECENTS_HOME, true)) }
     var showNew by remember { mutableStateOf(false) }
     var showWindows by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
@@ -209,7 +210,10 @@ fun HomeScreen(
                             Text("Arquivado Recentemente:", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE6E6E6), modifier = Modifier.weight(1f))
                             Image(
                                 painterResource(if (showRecent) R.drawable.toolbar_show else R.drawable.toolbar_hide), null,
-                                Modifier.size(22.dp).clip(RoundedCornerShape(6.dp)).clickable { showRecent = !showRecent },
+                                Modifier.size(22.dp).clip(RoundedCornerShape(6.dp)).clickable {
+                                    showRecent = !showRecent
+                                    prefs.edit().putBoolean(top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences.KEY_SHOW_RECENTS_HOME, showRecent).apply()
+                                },
                                 colorFilter = ColorFilter.tint(Color(0xFF8A8D91))
                             )
                         }
