@@ -373,20 +373,7 @@ fun EsDrawer(
     onClose: () -> Unit, onHome: () -> Unit, onLocal: () -> Unit, onRoot: () -> Unit,
     onCategory: (FileCategory) -> Unit, onCleaner: () -> Unit, onAnalyzer: () -> Unit, onApps: () -> Unit, onSettings: () -> Unit
 ) {
-    Column(Modifier.fillMaxHeight().fillMaxWidth(0.8f).background(EsBgColor)) {
-        Row(
-            Modifier.fillMaxWidth().background(EsTopColor).statusBarsPadding().padding(horizontal = 16.dp, vertical = 24.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(Modifier.size(42.dp).clip(RoundedCornerShape(21.dp)).background(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
-                Image(painterResource(R.drawable.toolbar_user), null, Modifier.size(24.dp), colorFilter = ColorFilter.tint(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.primary))
-            }
-            Spacer(Modifier.width(14.dp))
-            Column {
-                Text("MiuiX Files", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = EsTextPrimary)
-                Text("Gerenciador de arquivos", fontSize = 11.sp, color = EsTextSecondary)
-            }
-        }
+    Column(Modifier.fillMaxHeight().fillMaxWidth(0.8f).background(EsBgColor).statusBarsPadding()) {
         LazyColumn(Modifier.weight(1f)) {
             item { DrawerSection("Favoritos") }
             item { DrawerItem(R.drawable.icon_home_tab_home, "Página Inicial", onHome) }
