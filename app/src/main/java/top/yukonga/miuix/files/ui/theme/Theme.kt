@@ -39,6 +39,33 @@ object MiuiXFilesPreferences {
     const val KEY_BACKUP_DIR = "apk_backup_dir"
     const val KEY_DEFAULT_HOME_DIR = "default_home_dir"
     const val KEY_ROOT_EXPLORER = "root_explorer_enabled"
+    const val KEY_FAVORITES = "favorite_paths"
+
+    fun getFavorites(context: Context): List<java.io.File> {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val raw = prefs.getStringSet(KEY_FAVORITES, emptySet()).orEmpty()
+        return raw.map { java.io.File(it) }.filter { it.exists() }.sortedBy { it.name.lowercase() }
+    }
+
+    fun toggleFavorite(context: Context, file: java.io.File): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val current = prefs.getStringSet(KEY_FAVORITES, emptySet()).orEmpty().toMutableSet()
+        val path = file.absolutePath
+        val added = if (current.contains(path)) {
+            current.remove(path)
+            false
+        } else {
+            current.add(path)
+            true
+        }
+        prefs.edit().putStringSet(KEY_FAVORITES, current).apply()
+        return added
+    }
+
+    fun isFavorite(context: Context, file: java.io.File): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getStringSet(KEY_FAVORITES, emptySet()).orEmpty().contains(file.absolutePath)
+    }
 }
 
 val LocalAppThemeMode = staticCompositionLocalOf { 0 }

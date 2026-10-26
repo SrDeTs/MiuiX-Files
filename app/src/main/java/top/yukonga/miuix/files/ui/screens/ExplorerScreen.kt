@@ -688,6 +688,24 @@ fun ExplorerScreen(
             title = "Ações (${selectedFiles.size})",
             content = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (selectedFiles.size == 1) {
+                        val single = selectedFiles.first()
+                        val isFav = remember(single) { MiuiXFilesPreferences.isFavorite(context, single) }
+                        TextButton(
+                            text = if (isFav) "Remover dos Favoritos" else "Adicionar aos Favoritos",
+                            onClick = {
+                                val added = MiuiXFilesPreferences.toggleFavorite(context, single)
+                                showSelectionMoreDialog = false
+                                selectedPaths = emptySet()
+                                android.widget.Toast.makeText(
+                                    context,
+                                    if (added) "Adicionado aos Favoritos" else "Removido dos Favoritos",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                     TextButton(
                         text = "Compactar em .ZIP",
                         onClick = {

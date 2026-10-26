@@ -370,15 +370,76 @@ private fun RecentGroupBlock(g: RecentGroup, onOpenFile: (File) -> Unit, onNavig
 
 @Composable
 fun EsDrawer(
-    onClose: () -> Unit, onHome: () -> Unit, onLocal: () -> Unit, onRoot: () -> Unit,
-    onCategory: (FileCategory) -> Unit, onCleaner: () -> Unit, onAnalyzer: () -> Unit, onApps: () -> Unit, onSettings: () -> Unit
+    onClose: () -> Unit,
+    onHome: () -> Unit,
+    onLocal: () -> Unit,
+    onRoot: () -> Unit,
+    onCategory: (FileCategory) -> Unit,
+    onCleaner: () -> Unit,
+    onAnalyzer: () -> Unit,
+    onApps: () -> Unit,
+    onSettings: () -> Unit,
+    onOpenFavorite: (File) -> Unit = {}
 ) {
+    val context = LocalContext.current
+    var favorites by remember { mutableStateOf( top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences.getFavorites(context) ) }
+
     Column(Modifier.fillMaxHeight().fillMaxWidth(0.8f).background(EsBgColor).statusBarsPadding()) {
         LazyColumn(Modifier.weight(1f)) {
-            item { DrawerSection("Favoritos") }
+            item { DrawerSection("Local") }
             item { DrawerItem(R.drawable.icon_home_tab_home, "Página Inicial", onHome) }
-            item { DrawerItem(R.drawable.toolbar_local, "Armazenamento interno", onLocal) }
+            item { DrawerItem(R.drawable.toolbar_local, "Interno", onLocal) }
             item { DrawerItem(R.drawable.toolbar_root, "Dispositivo ( / )", onRoot) }
+
+            item { DrawerSection("Favoritos") }
+            if (favorites.isEmpty()) {
+                item {
+                    Text(
+                        "Nenhum favorito marcado",
+                        fontSize = 12.5.sp,
+                        color = EsTextSecondary.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)
+                    )
+                }
+            } else {
+                items(favorites, key = { it.absolutePath }) { fav ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { onOpenFavorite(fav) }
+                            .padding(horizontal = 18.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(
+                            painterResource(if (fav.isDirectory) R.drawable.format_folder else R.drawable.format_document),
+                            null,
+                            Modifier.size(22.dp)
+                        )
+                        Spacer(Modifier.width(16.dp))
+                        Text(
+                            fav.name.ifBlank { fav.absolutePath },
+                            fontSize = 14.sp,
+                            color = EsTextPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            "✕",
+                            fontSize = 12.sp,
+                            color = EsTextSecondary,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable {
+                                    top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences.toggleFavorite(context, fav)
+                                    favorites = top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences.getFavorites(context)
+                                }
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+
             item { DrawerSection("Biblioteca") }
             items(listOf(
                 Triple(R.drawable.toolbar_image, "Fotografias", FileCategory.IMAGES),
@@ -394,10 +455,28 @@ fun EsDrawer(
             item { DrawerItem(R.drawable.toolbar_analyer, "Analis. de espaço", onAnalyzer) }
             item { DrawerItem(R.drawable.toolbar_app, "Gerenciador de APPs", onApps) }
         }
-        Row(Modifier.fillMaxWidth().navigationBarsPadding().height(60.dp), verticalAlignment = Alignment.CenterVertically) {
-            DrawerBottom(R.drawable.toolbar_message, "Mensagem", Modifier.weight(1f), onClose)
-            DrawerBottom(R.drawable.toolbar_theme, "Tema", Modifier.weight(1f), onSettings)
-            DrawerBottom(R.drawable.toolbar_setting, "Configurações", Modifier.weight(1f), onSettings)
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(EsDividerColor)
+        )
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onSettings)
+                .navigationBarsPadding()
+                .padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Image(
+                painterResource(R.drawable.toolbar_setting),
+                null,
+                Modifier.size(22.dp),
+                colorFilter = ColorFilter.tint(EsTextPrimary.copy(alpha = 0.85f))
+            )
+            Spacer(Modifier.width(18.dp))
+            Text("Configurações", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = EsTextPrimary)
         }
     }
 }
@@ -412,14 +491,5 @@ private fun DrawerItem(icon: Int, title: String, onClick: () -> Unit) {
         Image(painterResource(icon), null, Modifier.size(22.dp), colorFilter = ColorFilter.tint(EsTextPrimary.copy(alpha = 0.85f)))
         Spacer(Modifier.width(18.dp))
         Text(title, fontSize = 14.sp, color = EsTextPrimary)
-    }
-}
-
-@Composable
-private fun DrawerBottom(icon: Int, title: String, modifier: Modifier, onClick: () -> Unit) {
-    Column(modifier.clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
-        Image(painterResource(icon), null, Modifier.size(20.dp), colorFilter = ColorFilter.tint(EsTextSecondary))
-        Spacer(Modifier.height(4.dp))
-        Text(title, fontSize = 12.sp, color = EsTextPrimary, textAlign = TextAlign.Center)
     }
 }

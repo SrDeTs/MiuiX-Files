@@ -414,6 +414,14 @@ class MainActivity : ComponentActivity() {
                                 onSettings = {
                                     drawerOpen = false
                                     overlayStack.add(Screen.Settings)
+                                },
+                                onOpenFavorite = { fav ->
+                                    drawerOpen = false
+                                    if (fav.isDirectory) {
+                                        openOrSwitchWindow(Screen.Explorer(fav))
+                                    } else {
+                                        handleOpen(fav)
+                                    }
                                 }
                             )
                         }
