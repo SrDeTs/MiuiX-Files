@@ -94,6 +94,11 @@ fun CategoryScreen(
     var selectedPaths by remember(category) { mutableStateOf<Set<String>>(emptySet()) }
     val isSelectionMode = selectedPaths.isNotEmpty()
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var renameFileName by remember { mutableStateOf("") }
+    var showSelectionMoreDialog by remember { mutableStateOf(false) }
+    var showOpenAsDialog by remember { mutableStateOf(false) }
+    var showPropertiesDialog by remember { mutableStateOf(false) }
     var tappedApkFile by remember { mutableStateOf<File?>(null) }
 
     androidx.activity.compose.BackHandler(enabled = isSelectionMode) {
@@ -353,22 +358,16 @@ fun CategoryScreen(
                                 selectedPaths = emptySet()
                                 files = StorageManager.getCategoryFiles(category, context = context, forceRefresh = true)
                             }
+                        } else {
+                            val firstSelected = files.firstOrNull { selectedPaths.contains(it.path) }
+                            if (firstSelected != null) {
+                                renameFileName = firstSelected.name
+                                showRenameDialog = true
+                            }
                         }
                     },
                     onMore = {
-                        val first = files.firstOrNull { selectedPaths.contains(it.path) }?.file
-                        if (first != null) {
-                            runCatching {
-                                val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", first)
-                                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                    type = "*/*"
-                                    putExtra(android.content.Intent.EXTRA_STREAM, uri)
-                                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                }
-                                context.startActivity(android.content.Intent.createChooser(intent, "Compartilhar ${first.name}"))
-                            }
-                        }
-                        selectedPaths = emptySet()
+                        showSelectionMoreDialog = true
                     }
                 )
             } else {
@@ -546,6 +545,187 @@ fun CategoryScreen(
             onViewContent = { file ->
                 tappedApkFile = null
                 onOpenFile(file)
+            }
+        )
+    }
+
+    if (showRenameDialog) {
+        top.yukonga.miuix.files.ui.components.EsInputDialog(
+            title = "Renomear",
+            value = renameFileName,
+            onValueChange = { renameFileName = it },
+            placeholder = "Novo nome",
+            confirmText = "OK",
+            onConfirm = {
+                val targetItem = files.firstOrNull { selectedPaths.contains(it.path) }
+                if (targetItem != null && renameFileName.isNotBlank()) {
+                    scope.launch {
+                        FileOperations.rename(targetItem.file, renameFileName.trim())
+                        showRenameDialog = false
+                        selectedPaths = emptySet()
+                        files = StorageManager.getCategoryFiles(category, context = context, forceRefresh = true)
+                    }
+                } else {
+                    showRenameDialog = false
+                }
+            },
+            onDismiss = { showRenameDialog = false }
+        )
+    }
+
+    if (showSelectionMoreDialog) {
+        val selectedItems = files.filter { selectedPaths.contains(it.path) }
+        val singleItem = selectedItems.singleOrNull()
+        val isFav = singleItem != null && top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences.isFavorite(context, singleItem.file)
+        OverlayDialog(
+            show = showSelectionMoreDialog,
+            onDismissRequest = { showSelectionMoreDialog = false },
+            title = "Mais Ações (${selectedItems.size})",
+            content = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (singleItem != null && !singleItem.isDirectory) {
+                        TextButton(
+                            text = "Abrir como...",
+                            onClick = {
+                                showSelectionMoreDialog = false
+                                showOpenAsDialog = true
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    TextButton(
+                        text = "Compartilhar",
+                        onClick = {
+                            showSelectionMoreDialog = false
+                            val first = selectedItems.firstOrNull()?.file
+                            if (first != null && !first.isDirectory) {
+                                runCatching {
+                                    val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", first)
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                        type = "*/*"
+                                        putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(android.content.Intent.createChooser(intent, "Compartilhar ${first.name}"))
+                                }
+                            }
+                            selectedPaths = emptySet()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (singleItem != null) {
+                        TextButton(
+                            text = if (isFav) "★ Remover dos Favoritos" else "☆ Adicionar aos Favoritos",
+                            onClick = {
+                                top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences.toggleFavorite(context, singleItem.file)
+                                showSelectionMoreDialog = false
+                                selectedPaths = emptySet()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        TextButton(
+                            text = "Copiar Caminho Completo",
+                            onClick = {
+                                val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                cm?.setPrimaryClip(android.content.ClipData.newPlainText("path", singleItem.path))
+                                android.widget.Toast.makeText(context, "Caminho copiado: ${singleItem.path}", android.widget.Toast.LENGTH_SHORT).show()
+                                showSelectionMoreDialog = false
+                                selectedPaths = emptySet()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    TextButton(
+                        text = "Propriedades",
+                        onClick = {
+                            showSelectionMoreDialog = false
+                            showPropertiesDialog = true
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(
+                        text = "Fechar",
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                        onClick = { showSelectionMoreDialog = false },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        )
+    }
+
+    if (showOpenAsDialog) {
+        val target = files.firstOrNull { selectedPaths.contains(it.path) }?.file
+        OverlayDialog(
+            show = showOpenAsDialog,
+            onDismissRequest = { showOpenAsDialog = false },
+            title = "Abrir como",
+            content = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val mimeOptions = listOf(
+                        "Texto" to "text/plain",
+                        "Áudio" to "audio/*",
+                        "Vídeo" to "video/*",
+                        "Imagem" to "image/*",
+                        "Outros / Qualquer App" to "*/*"
+                    )
+                    mimeOptions.forEach { (label, mime) ->
+                        TextButton(
+                            text = label,
+                            onClick = {
+                                showOpenAsDialog = false
+                                if (target != null) {
+                                    runCatching {
+                                        val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", target)
+                                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                            setDataAndType(uri, mime)
+                                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        context.startActivity(android.content.Intent.createChooser(intent, "Abrir ${target.name} como $label"))
+                                    }
+                                }
+                                selectedPaths = emptySet()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+        )
+    }
+
+    if (showPropertiesDialog) {
+        val selectedItems = files.filter { selectedPaths.contains(it.path) }
+        val totalSize = remember(selectedItems) { selectedItems.sumOf { it.size } }
+        OverlayDialog(
+            show = showPropertiesDialog,
+            onDismissRequest = { showPropertiesDialog = false },
+            title = "Propriedades",
+            content = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (selectedItems.size == 1) {
+                        val item = selectedItems.first()
+                        Text("Nome: ${item.name}", fontSize = 13.5.sp, color = EsTextPrimary, fontWeight = FontWeight.Bold)
+                        Text("Caminho: ${item.path}", fontSize = 12.sp, color = EsTextSecondary)
+                        Text("Tamanho: ${StorageManager.formatFileSize(totalSize)} ($totalSize B)", fontSize = 12.sp, color = EsTextSecondary)
+                        Text("Modificado: ${StorageManager.formatDate(item.lastModified)}", fontSize = 12.sp, color = EsTextSecondary)
+                        val r = if (item.file.canRead()) "r" else "-"
+                        val w = if (item.file.canWrite()) "w" else "-"
+                        val x = if (item.file.canExecute()) "x" else "-"
+                        Text("Permissões: $r$w$x", fontSize = 12.sp, color = EsTextSecondary)
+                    } else {
+                        Text("Itens selecionados: ${selectedItems.size}", fontSize = 13.5.sp, color = EsTextPrimary, fontWeight = FontWeight.Bold)
+                        Text("Tamanho Total: ${StorageManager.formatFileSize(totalSize)} ($totalSize B)", fontSize = 12.sp, color = EsTextSecondary)
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    TextButton(
+                        text = "Fechar",
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                        onClick = { showPropertiesDialog = false },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
         )
     }

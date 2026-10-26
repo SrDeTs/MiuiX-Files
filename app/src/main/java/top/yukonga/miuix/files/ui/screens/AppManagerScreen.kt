@@ -222,6 +222,50 @@ fun AppManagerScreen(
                         )
                     }
 
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        TextButton(
+                            text = "Compartilhar APK",
+                            onClick = {
+                                runCatching {
+                                    val src = java.io.File(app.sourceDir)
+                                    val uri = androidx.core.content.FileProvider.getUriForFile(
+                                        context,
+                                        "${context.packageName}.fileprovider",
+                                        src
+                                    )
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                        type = "application/vnd.android.package-archive"
+                                        putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(android.content.Intent.createChooser(intent, "Compartilhar ${app.appName}"))
+                                }
+                                selectedApp = null
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        TextButton(
+                            text = "Info do Sistema",
+                            onClick = {
+                                runCatching {
+                                    val intent = android.content.Intent(
+                                        android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                        android.net.Uri.parse("package:${app.packageName}")
+                                    )
+                                    context.startActivity(intent)
+                                }
+                                selectedApp = null
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
                     if (!app.isSystemApp) {
                         Spacer(modifier = Modifier.height(8.dp))
                         TextButton(
