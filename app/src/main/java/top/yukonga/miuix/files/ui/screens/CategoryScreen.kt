@@ -33,7 +33,6 @@ import top.yukonga.miuix.files.core.storage.FileOperations
 import top.yukonga.miuix.files.core.storage.StorageManager
 import top.yukonga.miuix.files.ui.components.EsAnalyzerPercentageTag
 import top.yukonga.miuix.files.ui.components.EsApkPropertiesDialog
-import top.yukonga.miuix.files.ui.components.EsDeleteConfirmDialog
 import top.yukonga.miuix.files.ui.components.EsBgColor
 import top.yukonga.miuix.files.ui.components.EsClipboardSideTab
 import top.yukonga.miuix.files.ui.components.EsDividerColor
@@ -462,25 +461,81 @@ fun CategoryScreen(
     if (showDeleteDialog) {
         val isRecycleCategory = category == FileCategory.RECYCLE_BIN
         var moveToRecycleBin by remember(isRecycleCategory) { mutableStateOf(!isRecycleCategory) }
-        EsDeleteConfirmDialog(
-            selectedCount = selectedPaths.size,
-            moveToRecycleBin = moveToRecycleBin && !isRecycleCategory,
-            onToggleRecycleBin = if (isRecycleCategory) null else { v -> moveToRecycleBin = v },
-            onConfirm = {
-                val toDel = files.filter { selectedPaths.contains(it.path) }.map { it.file }
-                val useRecycle = moveToRecycleBin && !isRecycleCategory
-                showDeleteDialog = false
-                scope.launch {
-                    if (useRecycle) {
-                        top.yukonga.miuix.files.core.storage.FileOperations.moveToRecycle(toDel)
-                    } else {
-                        top.yukonga.miuix.files.core.storage.FileOperations.deleteFiles(toDel)
-                    }
-                    selectedPaths = emptySet()
-                    files = StorageManager.getCategoryFiles(category, context = context, forceRefresh = true)
-                }
+        OverlayDialog(
+            show = showDeleteDialog,
+            onDismissRequest = { showDeleteDialog = false },
+            title = "Excluir (${selectedPaths.size})",
+            summary = if (moveToRecycleBin && !isRecycleCategory) {
+                "Mover ${selectedPaths.size} arquivo(s) para a Reciclagem?"
+            } else {
+                "Tem certeza de que deseja excluir permanentemente ${selectedPaths.size} arquivo(s)?"
             },
-            onDismiss = { showDeleteDialog = false }
+            content = {
+                if (!isRecycleCategory) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { moveToRecycleBin = !moveToRecycleBin }
+                            .padding(horizontal = 8.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            state = if (moveToRecycleBin) androidx.compose.ui.state.ToggleableState.On else androidx.compose.ui.state.ToggleableState.Off,
+                            onClick = { moveToRecycleBin = !moveToRecycleBin }
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Mover para a Reciclagem",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = EsTextPrimary
+                            )
+                            Text(
+                                text = if (moveToRecycleBin) "Pode ser restaurado depois" else "Desmarcado: exclusão direta e permanente",
+                                fontSize = 11.5.sp,
+                                color = if (moveToRecycleBin) EsTextSecondary else Color(0xFFFF6B6B)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                } else {
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    TextButton(
+                        text = "Cancelar",
+                        onClick = { showDeleteDialog = false },
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(
+                        text = if (moveToRecycleBin && !isRecycleCategory) "Mover" else "Excluir",
+                        colors = ButtonDefaults.textButtonColorsPrimary(
+                            color = if (moveToRecycleBin && !isRecycleCategory) Color(0xFF2F7DF6) else Color(0xFFE53935),
+                            textColor = Color.White
+                        ),
+                        onClick = {
+                            val toDel = files.filter { selectedPaths.contains(it.path) }.map { it.file }
+                            val useRecycle = moveToRecycleBin && !isRecycleCategory
+                            showDeleteDialog = false
+                            scope.launch {
+                                if (useRecycle) {
+                                    top.yukonga.miuix.files.core.storage.FileOperations.moveToRecycle(toDel)
+                                } else {
+                                    top.yukonga.miuix.files.core.storage.FileOperations.deleteFiles(toDel)
+                                }
+                                selectedPaths = emptySet()
+                                files = StorageManager.getCategoryFiles(category, context = context, forceRefresh = true)
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
         )
     }
 

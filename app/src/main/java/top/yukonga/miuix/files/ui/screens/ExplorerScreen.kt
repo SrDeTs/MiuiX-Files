@@ -623,28 +623,80 @@ fun ExplorerScreen(
         )
     }
 
-    // 1:1 ES File Explorer Delete Confirmation Dialog ("Excluir Arquivos")
+    // Delete Confirmation Dialog (MIUIX OverlayDialog with "Mover para a Reciclagem" checkbox vs direct permanent deletion)
     if (showDeleteDialog) {
         val defaultRecycle = remember(prefs) { prefs.getBoolean(MiuiXFilesPreferences.KEY_USE_RECYCLE_BIN, true) }
         var moveToRecycleBin by remember(defaultRecycle) { mutableStateOf(defaultRecycle) }
-        EsDeleteConfirmDialog(
-            selectedCount = selectedPaths.size,
-            moveToRecycleBin = moveToRecycleBin,
-            onToggleRecycleBin = { moveToRecycleBin = it },
-            onConfirm = {
-                val toDelete = moveToRecycleBin
-                scope.launch {
-                    val filesToDelete = files.filter { selectedPaths.contains(it.path) }.map { it.file }
-                    if (toDelete) {
-                        FileOperations.moveToRecycle(filesToDelete)
-                    } else {
-                        FileOperations.deleteFiles(filesToDelete)
-                    }
-                    showDeleteDialog = false
-                    refreshFiles()
-                }
+        OverlayDialog(
+            show = showDeleteDialog,
+            onDismissRequest = { showDeleteDialog = false },
+            title = "Excluir",
+            summary = if (moveToRecycleBin) {
+                "Mover ${selectedPaths.size} item(ns) selecionado(s) para a Reciclagem?"
+            } else {
+                "Tem certeza de que deseja excluir permanentemente ${selectedPaths.size} item(ns)?"
             },
-            onDismiss = { showDeleteDialog = false }
+            content = {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { moveToRecycleBin = !moveToRecycleBin }
+                        .padding(horizontal = 8.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        state = if (moveToRecycleBin) androidx.compose.ui.state.ToggleableState.On else androidx.compose.ui.state.ToggleableState.Off,
+                        onClick = { moveToRecycleBin = !moveToRecycleBin }
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Mover para a Reciclagem",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = EsTextPrimary
+                        )
+                        Text(
+                            text = if (moveToRecycleBin) "Pode ser restaurado depois" else "Desmarcado: exclusão direta e permanente",
+                            fontSize = 11.5.sp,
+                            color = if (moveToRecycleBin) EsTextSecondary else Color(0xFFFF6B6B)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    TextButton(
+                        text = "Cancelar",
+                        onClick = { showDeleteDialog = false },
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(
+                        text = if (moveToRecycleBin) "Mover" else "Excluir",
+                        colors = ButtonDefaults.textButtonColorsPrimary(
+                            color = if (moveToRecycleBin) Color(0xFF2F7DF6) else Color(0xFFE53935),
+                            textColor = Color.White
+                        ),
+                        onClick = {
+                            val toDelete = moveToRecycleBin
+                            scope.launch {
+                                val filesToDelete = files.filter { selectedPaths.contains(it.path) }.map { it.file }
+                                if (toDelete) {
+                                    FileOperations.moveToRecycle(filesToDelete)
+                                } else {
+                                    FileOperations.deleteFiles(filesToDelete)
+                                }
+                                showDeleteDialog = false
+                                refreshFiles()
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
         )
     }
 

@@ -15,8 +15,12 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroidSize
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -281,6 +285,7 @@ fun ImageViewerScreen(file: File, onBack: () -> Unit) {
 
     val currentFile = siblingImages.getOrNull(pagerState.currentPage) ?: file
     var showBars by remember { mutableStateOf(true) }
+    var isCurrentPageZoomed by remember { mutableStateOf(false) }
     var rotationMap by remember { mutableStateOf<Map<String, Float>>(emptyMap()) }
     var resolutionMap by remember { mutableStateOf<Map<String, Pair<Int, Int>>>(emptyMap()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -293,6 +298,10 @@ fun ImageViewerScreen(file: File, onBack: () -> Unit) {
         label = "img_rotation"
     )
 
+    LaunchedEffect(pagerState.currentPage) {
+        isCurrentPageZoomed = false
+    }
+
     BackHandler(onBack = onBack)
 
     Box(
@@ -303,6 +312,7 @@ fun ImageViewerScreen(file: File, onBack: () -> Unit) {
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
+            userScrollEnabled = !isCurrentPageZoomed,
             beyondViewportPageCount = 1
         ) { page ->
             val pageFile = siblingImages.getOrNull(page) ?: return@HorizontalPager
@@ -311,6 +321,12 @@ fun ImageViewerScreen(file: File, onBack: () -> Unit) {
             var scale by remember(pageFile.absolutePath, isCurrentPage) { mutableFloatStateOf(1f) }
             var offsetX by remember(pageFile.absolutePath, isCurrentPage) { mutableFloatStateOf(0f) }
             var offsetY by remember(pageFile.absolutePath, isCurrentPage) { mutableFloatStateOf(0f) }
+
+            LaunchedEffect(scale, isCurrentPage) {
+                if (isCurrentPage) {
+                    isCurrentPageZoomed = scale > 1.02f
+                }
+            }
 
             val pageRotation = if (isCurrentPage) animatedRotation else (rotationMap[pageFile.absolutePath] ?: 0f)
 
@@ -352,38 +368,37 @@ fun ImageViewerScreen(file: File, onBack: () -> Unit) {
                             }
                         )
                     }
-                    .then(
-                        if (scale > 1.01f) {
-                            Modifier.pointerInput(pageFile.absolutePath, scale) {
-                                detectTransformGestures { _, pan, zoom, _ ->
-                                    val newScale = (scale * zoom).coerceIn(1f, 5f)
-                                    scale = newScale
-                                    if (newScale > 1.01f) {
-                                        val maxX = (size.width * (newScale - 1f)) / 2f
-                                        val maxY = (size.height * (newScale - 1f)) / 2f
-                                        offsetX = (offsetX + pan.x).coerceIn(-maxX, maxX)
-                                        offsetY = (offsetY + pan.y).coerceIn(-maxY, maxY)
-                                    } else {
-                                        offsetX = 0f
-                                        offsetY = 0f
-                                    }
-                                }
-                            }
-                        } else {
-                            Modifier.pointerInput(pageFile.absolutePath) {
-                                detectTransformGestures { _, _, zoom, _ ->
-                                    if (zoom != 1f) {
-                                        val newScale = (scale * zoom).coerceIn(1f, 5f)
+                    .pointerInput(pageFile.absolutePath) {
+                        awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false)
+                            do {
+                                val event = awaitPointerEvent()
+                                val pointerCount = event.changes.count { it.pressed }
+                                if (pointerCount >= 2 || scale > 1.01f) {
+                                    val zoomChange = event.calculateZoom()
+                                    val panChange = event.calculatePan()
+                                    if (zoomChange != 1f || panChange != androidx.compose.ui.geometry.Offset.Zero) {
+                                        val newScale = (scale * zoomChange).coerceIn(1f, 5f)
                                         scale = newScale
-                                        if (newScale <= 1.01f) {
+                                        if (newScale > 1.01f) {
+                                            val maxX = (size.width * (newScale - 1f)) / 2f
+                                            val maxY = (size.height * (newScale - 1f)) / 2f
+                                            offsetX = (offsetX + panChange.x).coerceIn(-maxX, maxX)
+                                            offsetY = (offsetY + panChange.y).coerceIn(-maxY, maxY)
+                                        } else {
                                             offsetX = 0f
                                             offsetY = 0f
                                         }
+                                        event.changes.forEach { change ->
+                                            if (change.position != change.previousPosition) {
+                                                change.consume()
+                                            }
+                                        }
                                     }
                                 }
-                            }
+                            } while (event.changes.any { it.pressed })
                         }
-                    ),
+                    },
                 contentAlignment = Alignment.Center
             ) {
                 val bitmap = bmp
@@ -549,30 +564,84 @@ fun ImageViewerScreen(file: File, onBack: () -> Unit) {
     }
 
     if (showDeleteConfirm) {
-        var moveToRecycle by remember { mutableStateOf(true) }
-        EsDeleteConfirmDialog(
-            selectedCount = 1,
-            moveToRecycleBin = moveToRecycle,
-            onToggleRecycleBin = { moveToRecycle = it },
-            onConfirm = {
-                val target = currentFile
-                val recycle = moveToRecycle
-                showDeleteConfirm = false
-                scope.launch {
-                    if (recycle) {
-                        FileOperations.moveToRecycle(listOf(target))
-                    } else {
-                        FileOperations.deleteFiles(listOf(target))
-                    }
-                    val updated = siblingImages.filter { it.absolutePath != target.absolutePath }
-                    if (updated.isEmpty()) {
-                        onBack()
-                    } else {
-                        siblingImages = updated
+        val prefs = remember(context) { context.getSharedPreferences(top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences.PREFS_NAME, Context.MODE_PRIVATE) }
+        val defaultRecycle = remember(prefs) { prefs.getBoolean(top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences.KEY_USE_RECYCLE_BIN, true) }
+        var moveToRecycle by remember(defaultRecycle) { mutableStateOf(defaultRecycle) }
+        OverlayDialog(
+            show = showDeleteConfirm,
+            onDismissRequest = { showDeleteConfirm = false },
+            title = "Excluir",
+            summary = if (moveToRecycle) {
+                "Mover \"${currentFile.name}\" para a Reciclagem?"
+            } else {
+                "Tem certeza de que deseja excluir permanentemente \"${currentFile.name}\"?"
+            },
+            content = {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { moveToRecycle = !moveToRecycle }
+                        .padding(horizontal = 8.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    top.yukonga.miuix.kmp.basic.Checkbox(
+                        state = if (moveToRecycle) androidx.compose.ui.state.ToggleableState.On else androidx.compose.ui.state.ToggleableState.Off,
+                        onClick = { moveToRecycle = !moveToRecycle }
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Mover para a Reciclagem",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = EsTextPrimary
+                        )
+                        Text(
+                            text = if (moveToRecycle) "Pode ser restaurado depois" else "Desmarcado: exclusão direta e permanente",
+                            fontSize = 11.5.sp,
+                            color = if (moveToRecycle) EsTextSecondary else Color(0xFFFF6B6B)
+                        )
                     }
                 }
-            },
-            onDismiss = { showDeleteConfirm = false }
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    TextButton(
+                        text = "Cancelar",
+                        onClick = { showDeleteConfirm = false },
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(
+                        text = if (moveToRecycle) "Mover" else "Excluir",
+                        colors = ButtonDefaults.textButtonColorsPrimary(
+                            color = if (moveToRecycle) Color(0xFF2F7DF6) else Color(0xFFE53935),
+                            textColor = Color.White
+                        ),
+                        onClick = {
+                            val target = currentFile
+                            val recycle = moveToRecycle
+                            showDeleteConfirm = false
+                            scope.launch {
+                                if (recycle) {
+                                    FileOperations.moveToRecycle(listOf(target))
+                                } else {
+                                    FileOperations.deleteFiles(listOf(target))
+                                }
+                                val updated = siblingImages.filter { it.absolutePath != target.absolutePath }
+                                if (updated.isEmpty()) {
+                                    onBack()
+                                } else {
+                                    siblingImages = updated
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
         )
     }
 
