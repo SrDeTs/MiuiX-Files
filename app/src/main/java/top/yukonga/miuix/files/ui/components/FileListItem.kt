@@ -3,7 +3,9 @@ package top.yukonga.miuix.files.ui.components
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -11,8 +13,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -35,9 +42,19 @@ fun FileListItem(
     isSelectionMode: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isDropTarget: Boolean = false,
+    onBoundsChanged: ((Rect) -> Unit)? = null,
+    onDragStart: ((Offset) -> Unit)? = null,
+    onDragMove: ((Offset) -> Unit)? = null,
+    onDragEnd: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
+    var itemWindowOffset by remember { mutableStateOf(Offset.Zero) }
+    val currentOnLongClick by rememberUpdatedState(onLongClick)
+    val currentOnDragStart by rememberUpdatedState(onDragStart)
+    val currentOnDragMove by rememberUpdatedState(onDragMove)
+    val currentOnDragEnd by rememberUpdatedState(onDragEnd)
     val folderBadgeIcon: Int? = if (item.isDirectory) getEsFolderBadgeRes(item.name) else null
     var folderAppIcon by remember(item.path) { mutableStateOf<ImageBitmap?>(null) }
 
@@ -66,20 +83,58 @@ fun FileListItem(
         else -> R.drawable.format_unkown
     }
 
-    val backgroundColor = if (isSelected) {
-        Color(0xFF007AFF).copy(alpha = 0.22f)
-    } else {
-        Color.Transparent
+    val backgroundColor = when {
+        isDropTarget -> Color(0xFF3FE0F0).copy(alpha = 0.30f)
+        isSelected -> Color(0xFF007AFF).copy(alpha = 0.22f)
+        else -> Color.Transparent
     }
 
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .onGloballyPositioned { coords ->
+                val bounds = coords.boundsInWindow()
+                itemWindowOffset = bounds.topLeft
+                onBoundsChanged?.invoke(bounds)
+            }
             .clip(RoundedCornerShape(8.dp))
             .background(backgroundColor)
+            .then(
+                if (isDropTarget) {
+                    Modifier.border(1.5.dp, Color(0xFF3FE0F0), RoundedCornerShape(8.dp))
+                } else Modifier
+            )
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
+            )
+            .then(
+                if (onDragStart != null) {
+                    Modifier.pointerInput(item.path) {
+                        var dragStarted = false
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { localPos ->
+                                currentOnLongClick()
+                                dragStarted = false
+                                currentOnDragStart?.invoke(itemWindowOffset + localPos)
+                            },
+                            onDrag = { change, _ ->
+                                change.consume()
+                                dragStarted = true
+                                currentOnDragMove?.invoke(itemWindowOffset + change.position)
+                            },
+                            onDragEnd = {
+                                if (dragStarted) currentOnDragEnd?.invoke()
+                                else currentOnDragEnd?.invoke()
+                                dragStarted = false
+                            },
+                            onDragCancel = {
+                                currentOnDragEnd?.invoke()
+                                dragStarted = false
+                            }
+                        )
+                    }
+                } else Modifier
             )
             .padding(horizontal = 14.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically

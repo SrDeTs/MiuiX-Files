@@ -19,8 +19,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -100,6 +104,16 @@ fun ExplorerScreen(
     var showOpenAsDialog by remember { mutableStateOf(false) }
     var showPropertiesDialog by remember { mutableStateOf(false) }
     var tappedApkFile by remember { mutableStateOf<File?>(null) }
+
+    // 1:1 ES File Explorer Drag & Drop state
+    val folderBoundsMap = remember(currentDir) { mutableStateMapOf<String, Rect>() }
+    var containerWindowOffset by remember { mutableStateOf(Offset.Zero) }
+    var isDraggingItems by remember { mutableStateOf(false) }
+    var dragStartedMoving by remember { mutableStateOf(false) }
+    var dragWindowPos by remember { mutableStateOf(Offset.Zero) }
+    var hoveredFolderPath by remember { mutableStateOf<String?>(null) }
+    var pendingDropTargetDir by remember { mutableStateOf<File?>(null) }
+    var pendingDropFiles by remember { mutableStateOf<List<File>>(emptyList()) }
 
     val clipboardState = FileOperations.currentClipboard
     val transferState = FileOperations.transferState
@@ -238,8 +252,49 @@ fun ExplorerScreen(
                 }
             }
 
-            // Content Area (Grid or List) with MIUIX Folme spring transitions and overscroll
-            Box(modifier = Modifier.weight(1f)) {
+            // Content Area (Grid or List) with MIUIX Folme spring transitions, overscroll, and 1:1 Drag & Drop
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .onGloballyPositioned { coords ->
+                        containerWindowOffset = coords.boundsInWindow().topLeft
+                    }
+            ) {
+                fun handleItemDragStart(item: FileItem, windowPos: Offset) {
+                    if (!selectedPaths.contains(item.path)) {
+                        selectedPaths = selectedPaths + item.path
+                    }
+                    isDraggingItems = true
+                    dragStartedMoving = false
+                    dragWindowPos = windowPos
+                    hoveredFolderPath = null
+                }
+
+                fun handleItemDragMove(windowPos: Offset) {
+                    dragStartedMoving = true
+                    dragWindowPos = windowPos
+                    val targetEntry = folderBoundsMap.entries.firstOrNull { (dirPath, rect) ->
+                        rect.contains(windowPos) && !selectedPaths.contains(dirPath)
+                    }
+                    hoveredFolderPath = targetEntry?.key
+                }
+
+                fun handleItemDragEnd() {
+                    val targetPath = hoveredFolderPath
+                    if (dragStartedMoving && targetPath != null) {
+                        val destDir = File(targetPath)
+                        val dragged = files.filter { selectedPaths.contains(it.path) }.map { it.file }
+                            .filter { it.absolutePath != destDir.absolutePath }
+                        if (destDir.isDirectory && dragged.isNotEmpty()) {
+                            pendingDropTargetDir = destDir
+                            pendingDropFiles = dragged
+                        }
+                    }
+                    isDraggingItems = false
+                    dragStartedMoving = false
+                    hoveredFolderPath = null
+                }
+
                 AnimatedContent(
                     targetState = Pair(currentDir.absolutePath, isGridView),
                     transitionSpec = {
@@ -289,10 +344,18 @@ fun ExplorerScreen(
                         ) {
                             items(displayFiles, key = { it.path }) { item ->
                                 val isSelected = selectedPaths.contains(item.path)
+                                val isDropTarget = item.isDirectory && hoveredFolderPath == item.path
                                 FileGridItem(
                                     item = item,
                                     isSelected = isSelected,
                                     isSelectionMode = isSelectionMode,
+                                    isDropTarget = isDropTarget,
+                                    onBoundsChanged = { rect ->
+                                        if (item.isDirectory) folderBoundsMap[item.path] = rect
+                                    },
+                                    onDragStart = { pos -> handleItemDragStart(item, pos) },
+                                    onDragMove = { pos -> handleItemDragMove(pos) },
+                                    onDragEnd = { handleItemDragEnd() },
                                     modifier = Modifier.animateItem(
                                         fadeInSpec = folmeSpring(damping = 0.9f, response = 0.25f),
                                         placementSpec = folmeSpring(damping = 0.84f, response = 0.30f, visibilityThreshold = IntOffset(1, 1)),
@@ -321,10 +384,18 @@ fun ExplorerScreen(
                         ) {
                             items(displayFiles, key = { it.path }) { item ->
                                 val isSelected = selectedPaths.contains(item.path)
+                                val isDropTarget = item.isDirectory && hoveredFolderPath == item.path
                                 FileListItem(
                                     item = item,
                                     isSelected = isSelected,
                                     isSelectionMode = isSelectionMode,
+                                    isDropTarget = isDropTarget,
+                                    onBoundsChanged = { rect ->
+                                        if (item.isDirectory) folderBoundsMap[item.path] = rect
+                                    },
+                                    onDragStart = { pos -> handleItemDragStart(item, pos) },
+                                    onDragMove = { pos -> handleItemDragMove(pos) },
+                                    onDragEnd = { handleItemDragEnd() },
                                     modifier = Modifier.animateItem(
                                         fadeInSpec = folmeSpring(damping = 0.9f, response = 0.25f),
                                         placementSpec = folmeSpring(damping = 0.84f, response = 0.30f, visibilityThreshold = IntOffset(1, 1)),
@@ -344,6 +415,44 @@ fun ExplorerScreen(
                                     }
                                 )
                             }
+                        }
+                    }
+                }
+
+                // Floating Drag Ghost Badge following finger (1:1 ES File Explorer)
+                if (isDraggingItems && dragStartedMoving) {
+                    val localX = (dragWindowPos.x - containerWindowOffset.x).toInt()
+                    val localY = (dragWindowPos.y - containerWindowOffset.y).toInt()
+                    val firstSelected = files.firstOrNull { selectedPaths.contains(it.path) }
+                    val targetFolderName = hoveredFolderPath?.let { File(it).name }
+                    Row(
+                        modifier = Modifier
+                            .offset { IntOffset(localX - 70, localY - 95) }
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0xEE2B2F36))
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(
+                            painter = painterResource(
+                                if (firstSelected?.isDirectory == true) R.drawable.format_folder else R.drawable.format_document
+                            ),
+                            contentDescription = null,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = "${selectedPaths.size} item(ns)",
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = if (targetFolderName != null) "Soltar em \"$targetFolderName\"" else "Arraste para uma pasta",
+                                fontSize = 10.5.sp,
+                                color = if (targetFolderName != null) Color(0xFF3FE0F0) else Color(0xFFB0B4BA)
+                            )
                         }
                     }
                 }
@@ -470,6 +579,67 @@ fun ExplorerScreen(
                 )
             }
         }
+    }
+
+    // 1:1 Drag & Drop Action Dialog (Mover aqui vs Copiar aqui)
+    if (pendingDropTargetDir != null && pendingDropFiles.isNotEmpty()) {
+        val destDir = pendingDropTargetDir!!
+        val itemsToProcess = pendingDropFiles
+        OverlayDialog(
+            show = true,
+            onDismissRequest = {
+                pendingDropTargetDir = null
+                pendingDropFiles = emptyList()
+            },
+            title = "Soltar em \"${destDir.name}\"",
+            summary = "O que deseja fazer com ${itemsToProcess.size} item(ns) selecionado(s)?",
+            content = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        TextButton(
+                            text = "Copiar aqui",
+                            onClick = {
+                                pendingDropTargetDir = null
+                                pendingDropFiles = emptyList()
+                                selectedPaths = emptySet()
+                                scope.launch {
+                                    FileOperations.currentClipboard = FileOperations.ClipboardItem(itemsToProcess, FileOperations.ClipboardMode.COPY)
+                                    FileOperations.paste(destDir)
+                                    refreshFiles()
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(
+                            text = "Mover aqui",
+                            colors = ButtonDefaults.textButtonColorsPrimary(),
+                            onClick = {
+                                pendingDropTargetDir = null
+                                pendingDropFiles = emptyList()
+                                selectedPaths = emptySet()
+                                scope.launch {
+                                    FileOperations.currentClipboard = FileOperations.ClipboardItem(itemsToProcess, FileOperations.ClipboardMode.CUT)
+                                    FileOperations.paste(destDir)
+                                    refreshFiles()
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    TextButton(
+                        text = "Cancelar",
+                        onClick = {
+                            pendingDropTargetDir = null
+                            pendingDropFiles = emptyList()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        )
     }
 
     // New Type Choice (Pasta vs Arquivo)
