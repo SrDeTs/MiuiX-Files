@@ -85,13 +85,17 @@ fun ExplorerScreen(
     val pinMediaFolders = remember(prefs) { prefs.getBoolean(MiuiXFilesPreferences.KEY_PIN_MEDIA_FOLDERS, true) }
     val isSelectionMode = selectedPaths.isNotEmpty()
 
+    var showNewTypeDialog by remember { mutableStateOf(false) }
     var showNewFolderDialog by remember { mutableStateOf(false) }
+    var showNewFileDialog by remember { mutableStateOf(false) }
     var newFolderName by remember { mutableStateOf("") }
     var showRenameDialog by remember { mutableStateOf(false) }
     var renameFileName by remember { mutableStateOf("") }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showSearchBar by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
+    var showViewMenu by remember { mutableStateOf(false) }
+    var viewGridColumns by remember(defaultViewMode) { mutableIntStateOf(if (defaultViewMode == 1) 5 else 4) }
     var showSelectionMoreDialog by remember { mutableStateOf(false) }
     var showOpenAsDialog by remember { mutableStateOf(false) }
     var showPropertiesDialog by remember { mutableStateOf(false) }
@@ -277,7 +281,7 @@ fun ExplorerScreen(
                     } else if (gridMode) {
                         // 1:1 4-Column (or 5-Column Compact) Grid View with MIUIX overScrollVertical
                         LazyVerticalGrid(
-                            columns = GridCells.Fixed(gridColumnCount),
+                            columns = GridCells.Fixed(viewGridColumns),
                             modifier = Modifier.fillMaxSize().overScrollVertical(),
                             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -438,7 +442,7 @@ fun ExplorerScreen(
                         ) {
                             ExplorerBottomActionItem("Novo", R.drawable.toolbar_new, modifier = Modifier.weight(1f)) {
                                 newFolderName = ""
-                                showNewFolderDialog = true
+                                showNewTypeDialog = true
                             }
                             ExplorerBottomActionItem("Procurar", R.drawable.toolbar_search, modifier = Modifier.weight(1f)) {
                                 showSearchBar = !showSearchBar
@@ -446,7 +450,7 @@ fun ExplorerScreen(
                             }
                             ExplorerBottomActionItem("Atualizar", R.drawable.toolbar_refresh, modifier = Modifier.weight(1f)) { refreshFiles() }
                             ExplorerBottomActionItem("Visualizar", R.drawable.toolbar_view, modifier = Modifier.weight(1f)) {
-                                isGridView = !isGridView
+                                showViewMenu = true
                             }
                             ExplorerBottomActionItem("Mais", R.drawable.toolbar_more, modifier = Modifier.weight(1f)) {
                                 showMoreMenu = true
@@ -468,169 +472,179 @@ fun ExplorerScreen(
         }
     }
 
-    // New Folder Dialog
+    // New Type Choice (Pasta vs Arquivo)
+    if (showNewTypeDialog) {
+        OverlayDialog(
+            show = showNewTypeDialog,
+            onDismissRequest = { showNewTypeDialog = false },
+            title = "Novo",
+            content = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        text = "Pasta",
+                        onClick = {
+                            showNewTypeDialog = false
+                            newFolderName = ""
+                            showNewFolderDialog = true
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    TextButton(
+                        text = "Arquivo",
+                        onClick = {
+                            showNewTypeDialog = false
+                            newFolderName = ""
+                            showNewFileDialog = true
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(
+                        text = "Cancelar",
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                        onClick = { showNewTypeDialog = false },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        )
+    }
+
+    // 1:1 View Mode & Sort Dialog ("Visualizar")
+    if (showViewMenu) {
+        OverlayDialog(
+            show = showViewMenu,
+            onDismissRequest = { showViewMenu = false },
+            title = "Visualizar",
+            content = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Modo de Exibição", fontSize = 12.sp, color = EsTextSecondary, fontWeight = FontWeight.Bold)
+                    TextButton(
+                        text = if (isGridView && viewGridColumns == 4) "✓ Ícone Grande (4 colunas)" else "Ícone Grande (4 colunas)",
+                        onClick = {
+                            isGridView = true
+                            viewGridColumns = 4
+                            prefs.edit().putInt(MiuiXFilesPreferences.KEY_DEFAULT_VIEW_MODE, 0).apply()
+                            showViewMenu = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    TextButton(
+                        text = if (isGridView && viewGridColumns == 5) "✓ Ícone Médio (5 colunas)" else "Ícone Médio (5 colunas)",
+                        onClick = {
+                            isGridView = true
+                            viewGridColumns = 5
+                            prefs.edit().putInt(MiuiXFilesPreferences.KEY_DEFAULT_VIEW_MODE, 1).apply()
+                            showViewMenu = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    TextButton(
+                        text = if (!isGridView) "✓ Lista Detalhada" else "Lista Detalhada",
+                        onClick = {
+                            isGridView = false
+                            prefs.edit().putInt(MiuiXFilesPreferences.KEY_DEFAULT_VIEW_MODE, 2).apply()
+                            showViewMenu = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(
+                        text = "Fechar",
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                        onClick = { showViewMenu = false },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        )
+    }
+
+    // 1:1 ES File Explorer New Folder Dialog
     if (showNewFolderDialog) {
-        OverlayDialog(
-            show = showNewFolderDialog,
-            onDismissRequest = { showNewFolderDialog = false },
+        EsInputDialog(
             title = "Nova Pasta",
-            content = {
-                TextField(
-                    value = newFolderName,
-                    onValueChange = { newFolderName = it },
-                    label = "Digite o nome da pasta",
-                    useLabelAsPlaceholder = true,
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(20.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    TextButton(
-                        text = "Cancelar",
-                        onClick = { showNewFolderDialog = false },
-                        modifier = Modifier.weight(1f)
-                    )
-                    TextButton(
-                        text = "Criar",
-                        colors = ButtonDefaults.textButtonColorsPrimary(),
-                        onClick = {
-                            if (newFolderName.isNotBlank()) {
-                                scope.launch {
-                                    FileOperations.createDirectory(currentDir, newFolderName.trim())
-                                    showNewFolderDialog = false
-                                    refreshFiles()
-                                }
-                            }
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
+            value = newFolderName,
+            onValueChange = { newFolderName = it },
+            placeholder = "Nome da pasta",
+            confirmText = "Criar",
+            onConfirm = {
+                if (newFolderName.isNotBlank()) {
+                    scope.launch {
+                        FileOperations.createDirectory(currentDir, newFolderName.trim())
+                        showNewFolderDialog = false
+                        refreshFiles()
+                    }
                 }
-            }
+            },
+            onDismiss = { showNewFolderDialog = false }
         )
     }
 
-    // Rename Dialog
+    // 1:1 ES File Explorer New File Dialog
+    if (showNewFileDialog) {
+        EsInputDialog(
+            title = "Novo Arquivo",
+            value = newFolderName,
+            onValueChange = { newFolderName = it },
+            placeholder = "Nome do arquivo (ex: nota.txt)",
+            confirmText = "Criar",
+            onConfirm = {
+                if (newFolderName.isNotBlank()) {
+                    scope.launch {
+                        FileOperations.createFile(currentDir, newFolderName.trim())
+                        showNewFileDialog = false
+                        refreshFiles()
+                    }
+                }
+            },
+            onDismiss = { showNewFileDialog = false }
+        )
+    }
+
+    // 1:1 ES File Explorer Rename Dialog
     if (showRenameDialog) {
-        OverlayDialog(
-            show = showRenameDialog,
-            onDismissRequest = { showRenameDialog = false },
+        EsInputDialog(
             title = "Renomear",
-            content = {
-                TextField(
-                    value = renameFileName,
-                    onValueChange = { renameFileName = it },
-                    label = "Novo nome",
-                    useLabelAsPlaceholder = true,
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(20.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    TextButton(
-                        text = "Cancelar",
-                        onClick = { showRenameDialog = false },
-                        modifier = Modifier.weight(1f)
-                    )
-                    TextButton(
-                        text = "Salvar",
-                        colors = ButtonDefaults.textButtonColorsPrimary(),
-                        onClick = {
-                            val selected = files.firstOrNull { selectedPaths.contains(it.path) }
-                            if (selected != null && renameFileName.isNotBlank()) {
-                                scope.launch {
-                                    FileOperations.rename(selected.file, renameFileName.trim())
-                                    showRenameDialog = false
-                                    refreshFiles()
-                                }
-                            }
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
+            value = renameFileName,
+            onValueChange = { renameFileName = it },
+            confirmText = "Salvar",
+            onConfirm = {
+                val selected = files.firstOrNull { selectedPaths.contains(it.path) }
+                if (selected != null && renameFileName.isNotBlank()) {
+                    scope.launch {
+                        FileOperations.rename(selected.file, renameFileName.trim())
+                        showRenameDialog = false
+                        refreshFiles()
+                    }
                 }
-            }
+            },
+            onDismiss = { showRenameDialog = false }
         )
     }
 
-    // Delete Confirmation Dialog (1:1 ES File Explorer with "Mover para a Reciclagem" checkbox vs direct permanent deletion)
+    // 1:1 ES File Explorer Delete Confirmation Dialog ("Excluir Arquivos")
     if (showDeleteDialog) {
         val defaultRecycle = remember(prefs) { prefs.getBoolean(MiuiXFilesPreferences.KEY_USE_RECYCLE_BIN, true) }
         var moveToRecycleBin by remember(defaultRecycle) { mutableStateOf(defaultRecycle) }
-        OverlayDialog(
-            show = showDeleteDialog,
-            onDismissRequest = { showDeleteDialog = false },
-            title = "Excluir",
-            summary = if (moveToRecycleBin) {
-                "Mover ${selectedPaths.size} item(ns) selecionado(s) para a Reciclagem?"
-            } else {
-                "Tem certeza de que deseja excluir permanentemente ${selectedPaths.size} item(ns)?"
-            },
-            content = {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { moveToRecycleBin = !moveToRecycleBin }
-                        .padding(horizontal = 8.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Checkbox(
-                        state = if (moveToRecycleBin) androidx.compose.ui.state.ToggleableState.On else androidx.compose.ui.state.ToggleableState.Off,
-                        onClick = { moveToRecycleBin = !moveToRecycleBin }
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Mover para a Reciclagem",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = EsTextPrimary
-                        )
-                        Text(
-                            text = if (moveToRecycleBin) "Pode ser restaurado depois" else "Desmarcado: exclusão direta e permanente",
-                            fontSize = 11.5.sp,
-                            color = if (moveToRecycleBin) EsTextSecondary else Color(0xFFFF6B6B)
-                        )
+        EsDeleteConfirmDialog(
+            selectedCount = selectedPaths.size,
+            moveToRecycleBin = moveToRecycleBin,
+            onToggleRecycleBin = { moveToRecycleBin = it },
+            onConfirm = {
+                val toDelete = moveToRecycleBin
+                scope.launch {
+                    val filesToDelete = files.filter { selectedPaths.contains(it.path) }.map { it.file }
+                    if (toDelete) {
+                        FileOperations.moveToRecycle(filesToDelete)
+                    } else {
+                        FileOperations.deleteFiles(filesToDelete)
                     }
+                    showDeleteDialog = false
+                    refreshFiles()
                 }
-                Spacer(modifier = Modifier.height(16.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    TextButton(
-                        text = "Cancelar",
-                        onClick = { showDeleteDialog = false },
-                        modifier = Modifier.weight(1f)
-                    )
-                    TextButton(
-                        text = if (moveToRecycleBin) "Mover" else "Excluir",
-                        colors = ButtonDefaults.textButtonColorsPrimary(
-                            color = if (moveToRecycleBin) Color(0xFF2F7DF6) else Color(0xFFE53935),
-                            textColor = Color.White
-                        ),
-                        onClick = {
-                            val toDelete = moveToRecycleBin
-                            scope.launch {
-                                val filesToDelete = files.filter { selectedPaths.contains(it.path) }.map { it.file }
-                                if (toDelete) {
-                                    FileOperations.moveToRecycle(filesToDelete)
-                                } else {
-                                    FileOperations.deleteFiles(filesToDelete)
-                                }
-                                showDeleteDialog = false
-                                refreshFiles()
-                            }
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
+            },
+            onDismiss = { showDeleteDialog = false }
         )
     }
 
@@ -725,6 +739,32 @@ fun ExplorerScreen(
                                     if (added) "Adicionado aos Favoritos" else "Removido dos Favoritos",
                                     android.widget.Toast.LENGTH_SHORT
                                 ).show()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        TextButton(
+                            text = "Copiar Caminho Completo",
+                            onClick = {
+                                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                cm?.setPrimaryClip(android.content.ClipData.newPlainText("path", single.absolutePath))
+                                showSelectionMoreDialog = false
+                                selectedPaths = emptySet()
+                                android.widget.Toast.makeText(context, "Caminho copiado: ${single.absolutePath}", android.widget.Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        val isHiddenItem = single.name.startsWith(".")
+                        TextButton(
+                            text = if (isHiddenItem) "Desocultar (remover '.' do nome)" else "Ocultar (adicionar '.' ao nome)",
+                            onClick = {
+                                showSelectionMoreDialog = false
+                                val targetName = if (isHiddenItem) single.name.removePrefix(".") else ".${single.name}"
+                                scope.launch {
+                                    if (targetName.isNotBlank()) {
+                                        FileOperations.rename(single, targetName)
+                                        refreshFiles()
+                                    }
+                                }
                             },
                             modifier = Modifier.fillMaxWidth()
                         )

@@ -37,10 +37,26 @@ object FileOperations {
             return@withContext Result.failure(Exception("Pasta já existe"))
         }
         if (newDir.mkdirs()) {
+            StorageManager.invalidateCaches()
             Result.success(newDir)
         } else {
             Result.failure(Exception("Não foi possível criar a pasta"))
         }
+    }
+
+    suspend fun createFile(parent: File, name: String): Result<File> = withContext(Dispatchers.IO) {
+        val newFile = File(parent, name)
+        if (newFile.exists()) {
+            return@withContext Result.failure(Exception("Arquivo já existe"))
+        }
+        runCatching {
+            if (newFile.createNewFile()) {
+                StorageManager.invalidateCaches()
+                Result.success(newFile)
+            } else {
+                Result.failure(Exception("Não foi possível criar o arquivo"))
+            }
+        }.getOrElse { Result.failure(it) }
     }
 
     suspend fun rename(file: File, newName: String): Result<File> = withContext(Dispatchers.IO) {

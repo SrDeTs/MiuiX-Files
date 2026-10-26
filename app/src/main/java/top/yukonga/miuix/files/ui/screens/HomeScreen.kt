@@ -246,71 +246,62 @@ fun HomeScreen(
     }
 
     if (showNew) {
-        OverlayDialog(show = showNew, title = "Nova Pasta", onDismissRequest = { showNew = false }) {
-            TextField(
-                value = newName,
-                onValueChange = { newName = it },
-                label = "Digite o nome da pasta",
-                useLabelAsPlaceholder = true,
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(20.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                TextButton(text = "Cancelar", onClick = { showNew = false }, modifier = Modifier.weight(1f))
-                TextButton(
-                    text = "Criar",
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                    onClick = {
-                        val root = volumes.firstOrNull()?.path
-                        if (root != null && newName.isNotBlank()) {
-                            val d = File(root, newName.trim())
-                            if (d.exists() || d.mkdirs()) onNavigateDir(d)
-                        }
-                        showNew = false
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
+        EsInputDialog(
+            title = "Nova Pasta",
+            value = newName,
+            onValueChange = { newName = it },
+            placeholder = "Nome da pasta",
+            confirmText = "Criar",
+            onConfirm = {
+                val root = volumes.firstOrNull()?.path
+                if (root != null && newName.isNotBlank()) {
+                    val d = File(root, newName.trim())
+                    if (d.exists() || d.mkdirs()) onNavigateDir(d)
+                }
+                showNew = false
+            },
+            onDismiss = { showNew = false }
+        )
     }
     if (showWindows) {
         OverlayDialog(show = showWindows, title = "Janelas (${tabs.size})", onDismissRequest = { showWindows = false }) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 tabs.forEach { tab ->
                     val active = tab.id == activeTabId
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (active) Color(0x332EC7E0) else Color(0x22FFFFFF))
-                            .clickable {
-                                showWindows = false
-                                onTabSelect(tab)
-                            }
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Image(
-                            painterResource(tab.iconRes),
-                            null,
-                            Modifier.size(18.dp),
-                            colorFilter = if (tab.tintIcon) ColorFilter.tint(Color.White) else null
-                        )
-                        Spacer(Modifier.width(10.dp))
-                        Text(tab.title, fontSize = 14.sp, color = Color.White, modifier = Modifier.weight(1f))
-                        if (tabs.size > 1) {
-                            Text(
-                                "✕",
-                                fontSize = 14.sp,
-                                color = Color(0xFFFF6B6B),
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .clickable { onTabClose(tab) }
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                        val activeBg = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.primary.copy(alpha = 0.22f)
+                        val inactiveBg = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surfaceContainerHighest
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (active) activeBg else inactiveBg)
+                                .clickable {
+                                    showWindows = false
+                                    onTabSelect(tab)
+                                }
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Image(
+                                painterResource(tab.iconRes),
+                                null,
+                                Modifier.size(18.dp),
+                                colorFilter = if (tab.tintIcon) ColorFilter.tint(EsTextPrimary) else null
                             )
+                            Spacer(Modifier.width(10.dp))
+                            Text(tab.title, fontSize = 14.sp, color = EsTextPrimary, modifier = Modifier.weight(1f))
+                            if (tabs.size > 1) {
+                                Text(
+                                    "✕",
+                                    fontSize = 14.sp,
+                                    color = Color(0xFFFF6B6B),
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .clickable { onTabClose(tab) }
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
                         }
-                    }
                 }
                 if (onAddTab != null) {
                     TextButton(

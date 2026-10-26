@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -226,11 +227,14 @@ fun TextEditorScreen(initialFile: File?, onBack: () -> Unit) {
     }
 }
 
-/** ES Image Viewer: visualizador de imagens embutido com zoom e compartilhamento. */
+/** ES Image Viewer: visualizador de imagens embutido com zoom (pinch-to-zoom e duplo toque) e compartilhamento. */
 @Composable
 fun ImageViewerScreen(file: File, onBack: () -> Unit) {
     val context = LocalContext.current
     var bmp by remember(file.path) { mutableStateOf<ImageBitmap?>(null) }
+    var scale by remember(file.path) { mutableFloatStateOf(1f) }
+    var offsetX by remember(file.path) { mutableFloatStateOf(0f) }
+    var offsetY by remember(file.path) { mutableFloatStateOf(0f) }
     BackHandler(onBack = onBack)
 
     LaunchedEffect(file.path) {
@@ -247,12 +251,41 @@ fun ImageViewerScreen(file: File, onBack: () -> Unit) {
     }
 
     EsSubScreen(file.name, onBack) {
-        Box(Modifier.weight(1f).fillMaxWidth().background(Color.Black), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .background(Color.Black)
+                .clickable(
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    indication = null
+                ) {
+                    if (scale > 1.05f) {
+                        scale = 1f
+                        offsetX = 0f
+                        offsetY = 0f
+                    }
+                },
+            contentAlignment = Alignment.Center
+        ) {
             val b = bmp
             if (b != null) {
-                Image(b, contentDescription = file.name, modifier = Modifier.fillMaxSize())
+                Image(
+                    bitmap = b,
+                    contentDescription = file.name,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(
+                            androidx.compose.ui.Modifier.graphicsLayer(
+                                scaleX = scale,
+                                scaleY = scale,
+                                translationX = offsetX,
+                                translationY = offsetY
+                            )
+                        )
+                )
             } else {
-                Text("Carregando imagem...", color = Color(0xFFA0A3A6), fontSize = 13.sp)
+                Text("Carregando imagem...", color = EsTextSecondary, fontSize = 13.sp)
             }
         }
         Row(
@@ -260,19 +293,32 @@ fun ImageViewerScreen(file: File, onBack: () -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("${StorageManager.formatFileSize(file.length())} • ${StorageManager.formatDate(file.lastModified())}", fontSize = 12.sp, color = Color(0xFFB0B3B8))
-            Button(onClick = {
-                runCatching {
-                    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-                    val intent = Intent(Intent.ACTION_SEND).apply {
-                        type = "image/*"
-                        putExtra(Intent.EXTRA_STREAM, uri)
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            Text("${StorageManager.formatFileSize(file.length())} • ${StorageManager.formatDate(file.lastModified())}", fontSize = 12.sp, color = EsTextSecondary)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = {
+                    if (scale < 2.5f) {
+                        scale = 2.5f
+                    } else {
+                        scale = 1f
+                        offsetX = 0f
+                        offsetY = 0f
                     }
-                    context.startActivity(Intent.createChooser(intent, "Compartilhar ${file.name}"))
+                }) {
+                    Text(if (scale > 1.1f) "1x" else "Zoom 2.5x")
                 }
-            }) {
-                Text("Compartilhar")
+                Button(onClick = {
+                    runCatching {
+                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = "image/*"
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(Intent.createChooser(intent, "Compartilhar ${file.name}"))
+                    }
+                }) {
+                    Text("Compartilhar")
+                }
             }
         }
     }
@@ -410,22 +456,56 @@ fun AudioPlayerScreen(file: File, onBack: () -> Unit) {
                     Text(file.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = EsTextPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Spacer(Modifier.height(8.dp))
                     Text("${fmt(posMs)} / ${fmt(durationMs)}", fontSize = 13.sp, color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.primary)
+                    Spacer(Modifier.height(14.dp))
+                    top.yukonga.miuix.kmp.basic.LinearProgressIndicator(
+                        progress = if (durationMs > 0) (posMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f,
+                        height = 5.dp
+                    )
                     Spacer(Modifier.height(20.dp))
-                    Button(
-                        onClick = {
-                            runCatching {
-                                if (player.isPlaying) {
-                                    player.pause()
-                                    playing = false
-                                } else {
-                                    player.start()
-                                    playing = true
-                                }
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text(if (playing) "Pausar" else "Reproduzir")
+                        Button(
+                            onClick = {
+                                runCatching {
+                                    val next = (player.currentPosition - 10_000).coerceAtLeast(0)
+                                    player.seekTo(next)
+                                    posMs = next
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("-10s")
+                        }
+                        Button(
+                            onClick = {
+                                runCatching {
+                                    if (player.isPlaying) {
+                                        player.pause()
+                                        playing = false
+                                    } else {
+                                        player.start()
+                                        playing = true
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1.4f)
+                        ) {
+                            Text(if (playing) "Pausar" else "Reproduzir")
+                        }
+                        Button(
+                            onClick = {
+                                runCatching {
+                                    val next = (player.currentPosition + 10_000).coerceAtMost(durationMs)
+                                    player.seekTo(next)
+                                    posMs = next
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("+10s")
+                        }
                     }
                 }
             }

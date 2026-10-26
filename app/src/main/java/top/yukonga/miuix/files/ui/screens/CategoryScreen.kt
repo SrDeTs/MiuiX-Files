@@ -33,6 +33,7 @@ import top.yukonga.miuix.files.core.storage.FileOperations
 import top.yukonga.miuix.files.core.storage.StorageManager
 import top.yukonga.miuix.files.ui.components.EsAnalyzerPercentageTag
 import top.yukonga.miuix.files.ui.components.EsApkPropertiesDialog
+import top.yukonga.miuix.files.ui.components.EsDeleteConfirmDialog
 import top.yukonga.miuix.files.ui.components.EsBgColor
 import top.yukonga.miuix.files.ui.components.EsClipboardSideTab
 import top.yukonga.miuix.files.ui.components.EsDividerColor
@@ -75,6 +76,8 @@ fun CategoryScreen(
     var files by remember(category) { mutableStateOf(cached ?: emptyList()) }
     var isLoading by remember(category) { mutableStateOf(cached == null) }
     var isGridView by remember { mutableStateOf(true) }
+    var viewGridColumns by remember { mutableIntStateOf(4) }
+    var showViewMenu by remember { mutableStateOf(false) }
     var showSearchBar by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var currentSort by remember { mutableStateOf(SortOption.DATE_DESC) }
@@ -248,7 +251,7 @@ fun CategoryScreen(
                     ) { gridMode ->
                         if (gridMode) {
                             LazyVerticalGrid(
-                                columns = GridCells.Fixed(4),
+                                columns = GridCells.Fixed(viewGridColumns),
                                 modifier = Modifier.fillMaxSize().overScrollVertical(),
                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -410,7 +413,7 @@ fun CategoryScreen(
                             }
                         }
                         CategoryBottomItem("Visualizar", R.drawable.toolbar_view, modifier = Modifier.weight(1f)) {
-                            isGridView = !isGridView
+                            showViewMenu = true
                         }
                         CategoryBottomItem("Mais", R.drawable.toolbar_more, modifier = Modifier.weight(1f)) {
                             showMoreMenu = true
@@ -421,84 +424,63 @@ fun CategoryScreen(
         }
     }
 
-    if (showDeleteDialog) {
-        val isRecycleCategory = category == FileCategory.RECYCLE_BIN
-        var moveToRecycleBin by remember(isRecycleCategory) { mutableStateOf(!isRecycleCategory) }
+    if (showViewMenu) {
         OverlayDialog(
-            show = showDeleteDialog,
-            onDismissRequest = { showDeleteDialog = false },
-            title = "Excluir (${selectedPaths.size})",
-            summary = if (moveToRecycleBin && !isRecycleCategory) {
-                "Mover ${selectedPaths.size} arquivo(s) para a Reciclagem?"
-            } else {
-                "Tem certeza de que deseja excluir permanentemente ${selectedPaths.size} arquivo(s)?"
-            },
+            show = showViewMenu,
+            onDismissRequest = { showViewMenu = false },
+            title = "Visualizar",
             content = {
-                if (!isRecycleCategory) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable { moveToRecycleBin = !moveToRecycleBin }
-                            .padding(horizontal = 8.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Checkbox(
-                            state = if (moveToRecycleBin) androidx.compose.ui.state.ToggleableState.On else androidx.compose.ui.state.ToggleableState.Off,
-                            onClick = { moveToRecycleBin = !moveToRecycleBin }
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Mover para a Reciclagem",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = EsTextPrimary
-                            )
-                            Text(
-                                text = if (moveToRecycleBin) "Pode ser restaurado depois" else "Desmarcado: exclusão direta e permanente",
-                                fontSize = 11.5.sp,
-                                color = if (moveToRecycleBin) EsTextSecondary else Color(0xFFFF6B6B)
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                } else {
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Modo de Exibição", fontSize = 12.sp, color = EsTextSecondary, fontWeight = FontWeight.Bold)
                     TextButton(
-                        text = "Cancelar",
-                        onClick = { showDeleteDialog = false },
-                        modifier = Modifier.weight(1f)
+                        text = if (isGridView && viewGridColumns == 4) "✓ Ícone Grande (4 colunas)" else "Ícone Grande (4 colunas)",
+                        onClick = { isGridView = true; viewGridColumns = 4; showViewMenu = false },
+                        modifier = Modifier.fillMaxWidth()
                     )
                     TextButton(
-                        text = if (moveToRecycleBin && !isRecycleCategory) "Mover" else "Excluir",
-                        colors = ButtonDefaults.textButtonColorsPrimary(
-                            color = if (moveToRecycleBin && !isRecycleCategory) Color(0xFF2F7DF6) else Color(0xFFE53935),
-                            textColor = Color.White
-                        ),
-                        onClick = {
-                            val toDel = files.filter { selectedPaths.contains(it.path) }.map { it.file }
-                            val useRecycle = moveToRecycleBin && !isRecycleCategory
-                            showDeleteDialog = false
-                            scope.launch {
-                                if (useRecycle) {
-                                    top.yukonga.miuix.files.core.storage.FileOperations.moveToRecycle(toDel)
-                                } else {
-                                    top.yukonga.miuix.files.core.storage.FileOperations.deleteFiles(toDel)
-                                }
-                                selectedPaths = emptySet()
-                                files = StorageManager.getCategoryFiles(category, context = context, forceRefresh = true)
-                            }
-                        },
-                        modifier = Modifier.weight(1f)
+                        text = if (isGridView && viewGridColumns == 5) "✓ Ícone Médio (5 colunas)" else "Ícone Médio (5 colunas)",
+                        onClick = { isGridView = true; viewGridColumns = 5; showViewMenu = false },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    TextButton(
+                        text = if (!isGridView) "✓ Lista Detalhada" else "Lista Detalhada",
+                        onClick = { isGridView = false; showViewMenu = false },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(
+                        text = "Fechar",
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                        onClick = { showViewMenu = false },
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
+        )
+    }
+
+    if (showDeleteDialog) {
+        val isRecycleCategory = category == FileCategory.RECYCLE_BIN
+        var moveToRecycleBin by remember(isRecycleCategory) { mutableStateOf(!isRecycleCategory) }
+        EsDeleteConfirmDialog(
+            selectedCount = selectedPaths.size,
+            moveToRecycleBin = moveToRecycleBin && !isRecycleCategory,
+            onToggleRecycleBin = if (isRecycleCategory) null else { v -> moveToRecycleBin = v },
+            onConfirm = {
+                val toDel = files.filter { selectedPaths.contains(it.path) }.map { it.file }
+                val useRecycle = moveToRecycleBin && !isRecycleCategory
+                showDeleteDialog = false
+                scope.launch {
+                    if (useRecycle) {
+                        top.yukonga.miuix.files.core.storage.FileOperations.moveToRecycle(toDel)
+                    } else {
+                        top.yukonga.miuix.files.core.storage.FileOperations.deleteFiles(toDel)
+                    }
+                    selectedPaths = emptySet()
+                    files = StorageManager.getCategoryFiles(category, context = context, forceRefresh = true)
+                }
+            },
+            onDismiss = { showDeleteDialog = false }
         )
     }
 

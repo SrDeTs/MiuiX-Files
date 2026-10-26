@@ -19,7 +19,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -290,5 +294,229 @@ private fun ApkDetailRow(label: String, value: String) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
+    }
+}
+
+/**
+ * 1:1 ES File Explorer Input Dialog (Nova Pasta / Novo Arquivo / Renomear)
+ * Matches reference screenshots media_1792816874343_adfc9632.png & media_1792816714678_7cd37310.png
+ */
+@Composable
+fun EsInputDialog(
+    title: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String = "",
+    confirmText: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
+                .background(EsCardColor)
+                .padding(horizontal = 24.dp, vertical = 22.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = title,
+                fontSize = 19.sp,
+                fontWeight = FontWeight.Bold,
+                color = EsTextPrimary,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 52.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surfaceContainerHighest)
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                if (value.isEmpty() && placeholder.isNotEmpty()) {
+                    Text(
+                        text = placeholder,
+                        fontSize = 15.sp,
+                        color = EsTextSecondary.copy(alpha = 0.7f)
+                    )
+                }
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    textStyle = TextStyle(
+                        fontSize = 15.5.sp,
+                        color = EsTextPrimary,
+                        fontWeight = FontWeight.Normal
+                    ),
+                    cursorBrush = SolidColor(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.primary),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            Spacer(modifier = Modifier.height(22.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val cancelInteraction = remember { MutableInteractionSource() }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surfaceContainerHighest)
+                        .pressable(interactionSource = cancelInteraction, indication = SinkFeedback())
+                        .clickable(interactionSource = cancelInteraction, indication = null, onClick = onDismiss)
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Cancelar",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = EsTextPrimary.copy(alpha = 0.9f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                val confirmInteraction = remember { MutableInteractionSource() }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surfaceContainerHighest)
+                        .pressable(interactionSource = confirmInteraction, indication = SinkFeedback())
+                        .clickable(interactionSource = confirmInteraction, indication = null, onClick = onConfirm)
+                        .padding(horizontal = 22.dp, vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = confirmText,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = EsTextPrimary
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 1:1 ES File Explorer Delete Confirmation Dialog ("Excluir Arquivos")
+ * Matches reference screenshot media_1792816690893_9557acbf.png
+ */
+@Composable
+fun EsDeleteConfirmDialog(
+    selectedCount: Int,
+    moveToRecycleBin: Boolean,
+    onToggleRecycleBin: ((Boolean) -> Unit)? = null,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
+                .background(EsCardColor)
+                .padding(horizontal = 24.dp, vertical = 22.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Excluir Arquivos",
+                fontSize = 19.sp,
+                fontWeight = FontWeight.Bold,
+                color = EsTextPrimary,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = if (moveToRecycleBin) {
+                    "Mover $selectedCount item(ns) para a Lixeira?"
+                } else {
+                    "Excluir permanentemente $selectedCount item(ns)?"
+                },
+                fontSize = 15.sp,
+                color = EsTextPrimary,
+                textAlign = TextAlign.Center
+            )
+
+            if (onToggleRecycleBin != null) {
+                Spacer(modifier = Modifier.height(14.dp))
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { onToggleRecycleBin(!moveToRecycleBin) }
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    top.yukonga.miuix.kmp.basic.Checkbox(
+                        state = if (moveToRecycleBin) androidx.compose.ui.state.ToggleableState.On else androidx.compose.ui.state.ToggleableState.Off,
+                        onClick = { onToggleRecycleBin(!moveToRecycleBin) }
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Mover para a Reciclagem",
+                        fontSize = 13.sp,
+                        color = EsTextSecondary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val cancelInteraction = remember { MutableInteractionSource() }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surfaceContainerHighest)
+                        .pressable(interactionSource = cancelInteraction, indication = SinkFeedback())
+                        .clickable(interactionSource = cancelInteraction, indication = null, onClick = onDismiss)
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Cancelar",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = EsTextPrimary.copy(alpha = 0.9f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                val confirmInteraction = remember { MutableInteractionSource() }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surfaceContainerHighest)
+                        .pressable(interactionSource = confirmInteraction, indication = SinkFeedback())
+                        .clickable(interactionSource = confirmInteraction, indication = null, onClick = onConfirm)
+                        .padding(horizontal = 22.dp, vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Excluir",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = EsTextPrimary
+                    )
+                }
+            }
+        }
     }
 }
