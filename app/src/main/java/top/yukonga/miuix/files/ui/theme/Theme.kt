@@ -40,6 +40,9 @@ object MiuiXFilesPreferences {
     const val KEY_DEFAULT_HOME_DIR = "default_home_dir"
     const val KEY_ROOT_EXPLORER = "root_explorer_enabled"
     const val KEY_FAVORITES = "favorite_paths"
+    const val KEY_DRAWER_SHOW_LOCAL = "drawer_show_local"
+    const val KEY_DRAWER_SHOW_LIBRARY = "drawer_show_library"
+    const val KEY_DRAWER_SHOW_TOOLS = "drawer_show_tools"
 
     fun getFavorites(context: Context): List<java.io.File> {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

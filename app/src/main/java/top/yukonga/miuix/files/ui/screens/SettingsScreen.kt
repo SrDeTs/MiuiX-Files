@@ -68,6 +68,9 @@ fun SettingsScreen(
     var useRecycleBin by remember { mutableStateOf(prefs.getBoolean(MiuiXFilesPreferences.KEY_USE_RECYCLE_BIN, true)) }
     var confirmBeforeDelete by remember { mutableStateOf(prefs.getBoolean(MiuiXFilesPreferences.KEY_CONFIRM_BEFORE_DELETE, true)) }
     var rootExplorerEnabled by remember { mutableStateOf(prefs.getBoolean(MiuiXFilesPreferences.KEY_ROOT_EXPLORER, false)) }
+    var drawerShowLocal by remember { mutableStateOf(prefs.getBoolean(MiuiXFilesPreferences.KEY_DRAWER_SHOW_LOCAL, false)) }
+    var drawerShowLibrary by remember { mutableStateOf(prefs.getBoolean(MiuiXFilesPreferences.KEY_DRAWER_SHOW_LIBRARY, false)) }
+    var drawerShowTools by remember { mutableStateOf(prefs.getBoolean(MiuiXFilesPreferences.KEY_DRAWER_SHOW_TOOLS, false)) }
     var backupDirPath by remember { mutableStateOf(prefs.getString(MiuiXFilesPreferences.KEY_BACKUP_DIR, "backups/apps") ?: "backups/apps") }
     var defaultHomeDir by remember { mutableStateOf(prefs.getString(MiuiXFilesPreferences.KEY_DEFAULT_HOME_DIR, "/storage/emulated/0") ?: "/storage/emulated/0") }
 
@@ -270,6 +273,49 @@ fun SettingsScreen(
                             onCheckedChange = { checked ->
                                 showRecentsHome = checked
                                 prefs.edit().putBoolean(MiuiXFilesPreferences.KEY_SHOW_RECENTS_HOME, checked).apply()
+                            }
+                        )
+                    }
+                }
+            }
+
+            // 3.5 MENU LATERAL (GAVETA)
+            item {
+                SmallTitle(text = "Menu Lateral (Gaveta)")
+                Spacer(modifier = Modifier.height(6.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    cornerRadius = 16.dp,
+                    colors = cardColors
+                ) {
+                    Column {
+                        SwitchPreference(
+                            title = "Exibir Seção 'Local'",
+                            summary = "Mostrar Página Inicial, Interno e Dispositivo na gaveta lateral",
+                            checked = drawerShowLocal,
+                            onCheckedChange = { checked ->
+                                drawerShowLocal = checked
+                                prefs.edit().putBoolean(MiuiXFilesPreferences.KEY_DRAWER_SHOW_LOCAL, checked).apply()
+                            }
+                        )
+
+                        SwitchPreference(
+                            title = "Exibir Seção 'Biblioteca'",
+                            summary = "Mostrar Fotografias, Música, Filmes, Livros, APP, Download e Reciclagem",
+                            checked = drawerShowLibrary,
+                            onCheckedChange = { checked ->
+                                drawerShowLibrary = checked
+                                prefs.edit().putBoolean(MiuiXFilesPreferences.KEY_DRAWER_SHOW_LIBRARY, checked).apply()
+                            }
+                        )
+
+                        SwitchPreference(
+                            title = "Exibir Seção 'Ferramentas'",
+                            summary = "Mostrar Cleaner, Analis. de espaço e Gerenciador de APPs na gaveta",
+                            checked = drawerShowTools,
+                            onCheckedChange = { checked ->
+                                drawerShowTools = checked
+                                prefs.edit().putBoolean(MiuiXFilesPreferences.KEY_DRAWER_SHOW_TOOLS, checked).apply()
                             }
                         )
                     }
@@ -587,6 +633,9 @@ fun SettingsScreen(
                         useRecycleBin = true
                         confirmBeforeDelete = true
                         rootExplorerEnabled = false
+                        drawerShowLocal = false
+                        drawerShowLibrary = false
+                        drawerShowTools = false
                         backupDirPath = "backups/apps"
                         defaultHomeDir = "/storage/emulated/0"
                         showResetSettingsDialog = false

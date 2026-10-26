@@ -382,14 +382,20 @@ fun EsDrawer(
     onOpenFavorite: (File) -> Unit = {}
 ) {
     val context = LocalContext.current
-    var favorites by remember { mutableStateOf( top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences.getFavorites(context) ) }
+    val prefs = remember(context) { context.getSharedPreferences(top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE) }
+    var favorites by remember { mutableStateOf(top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences.getFavorites(context)) }
+    val showLocalSection = remember { prefs.getBoolean(top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences.KEY_DRAWER_SHOW_LOCAL, false) }
+    val showLibrarySection = remember { prefs.getBoolean(top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences.KEY_DRAWER_SHOW_LIBRARY, false) }
+    val showToolsSection = remember { prefs.getBoolean(top.yukonga.miuix.files.ui.theme.MiuiXFilesPreferences.KEY_DRAWER_SHOW_TOOLS, false) }
 
     Column(Modifier.fillMaxHeight().fillMaxWidth(0.8f).background(EsBgColor).statusBarsPadding()) {
         LazyColumn(Modifier.weight(1f)) {
-            item { DrawerSection("Local") }
-            item { DrawerItem(R.drawable.icon_home_tab_home, "Página Inicial", onHome) }
-            item { DrawerItem(R.drawable.toolbar_local, "Interno", onLocal) }
-            item { DrawerItem(R.drawable.toolbar_root, "Dispositivo ( / )", onRoot) }
+            if (showLocalSection) {
+                item { DrawerSection("Local") }
+                item { DrawerItem(R.drawable.icon_home_tab_home, "Página Inicial", onHome) }
+                item { DrawerItem(R.drawable.toolbar_local, "Interno", onLocal) }
+                item { DrawerItem(R.drawable.toolbar_root, "Dispositivo ( / )", onRoot) }
+            }
 
             item { DrawerSection("Favoritos") }
             if (favorites.isEmpty()) {
@@ -440,20 +446,25 @@ fun EsDrawer(
                 }
             }
 
-            item { DrawerSection("Biblioteca") }
-            items(listOf(
-                Triple(R.drawable.toolbar_image, "Fotografias", FileCategory.IMAGES),
-                Triple(R.drawable.toolbar_music, "Música", FileCategory.AUDIO),
-                Triple(R.drawable.toolbar_video, "Filmes", FileCategory.VIDEOS),
-                Triple(R.drawable.toolbar_document, "Livros", FileCategory.DOCUMENTS),
-                Triple(R.drawable.toolbar_app, "APP", FileCategory.APPS),
-                Triple(R.drawable.toolbar_download, "Download", FileCategory.DOWNLOADS),
-                Triple(R.drawable.toolbar_delete, "Reciclagem", FileCategory.RECYCLE_BIN)
-            )) { (ic, t, c) -> DrawerItem(ic, t) { onCategory(c) } }
-            item { DrawerSection("Ferramentas") }
-            item { DrawerItem(R.drawable.toolbar_clean, "Cleaner", onCleaner) }
-            item { DrawerItem(R.drawable.toolbar_analyer, "Analis. de espaço", onAnalyzer) }
-            item { DrawerItem(R.drawable.toolbar_app, "Gerenciador de APPs", onApps) }
+            if (showLibrarySection) {
+                item { DrawerSection("Biblioteca") }
+                items(listOf(
+                    Triple(R.drawable.toolbar_image, "Fotografias", FileCategory.IMAGES),
+                    Triple(R.drawable.toolbar_music, "Música", FileCategory.AUDIO),
+                    Triple(R.drawable.toolbar_video, "Filmes", FileCategory.VIDEOS),
+                    Triple(R.drawable.toolbar_document, "Livros", FileCategory.DOCUMENTS),
+                    Triple(R.drawable.toolbar_app, "APP", FileCategory.APPS),
+                    Triple(R.drawable.toolbar_download, "Download", FileCategory.DOWNLOADS),
+                    Triple(R.drawable.toolbar_delete, "Reciclagem", FileCategory.RECYCLE_BIN)
+                )) { (ic, t, c) -> DrawerItem(ic, t) { onCategory(c) } }
+            }
+
+            if (showToolsSection) {
+                item { DrawerSection("Ferramentas") }
+                item { DrawerItem(R.drawable.toolbar_clean, "Cleaner", onCleaner) }
+                item { DrawerItem(R.drawable.toolbar_analyer, "Analis. de espaço", onAnalyzer) }
+                item { DrawerItem(R.drawable.toolbar_app, "Gerenciador de APPs", onApps) }
+            }
         }
         Box(
             Modifier
