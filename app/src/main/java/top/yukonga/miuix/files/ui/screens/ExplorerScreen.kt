@@ -105,15 +105,16 @@ fun ExplorerScreen(
     var showPropertiesDialog by remember { mutableStateOf(false) }
     var tappedApkFile by remember { mutableStateOf<File?>(null) }
 
-    // 1:1 ES File Explorer Drag & Drop state
+    // 1:1 ES File Explorer Drag & Drop state (only active on ALREADY selected items; moves directly without popup)
     val folderBoundsMap = remember(currentDir) { mutableStateMapOf<String, Rect>() }
+    val breadcrumbBoundsMap = remember(currentDir) { mutableStateMapOf<String, Rect>() }
     var containerWindowOffset by remember { mutableStateOf(Offset.Zero) }
     var isDraggingItems by remember { mutableStateOf(false) }
     var dragStartedMoving by remember { mutableStateOf(false) }
     var dragWindowPos by remember { mutableStateOf(Offset.Zero) }
+    var draggedPrimaryItem by remember { mutableStateOf<FileItem?>(null) }
     var hoveredFolderPath by remember { mutableStateOf<String?>(null) }
-    var pendingDropTargetDir by remember { mutableStateOf<File?>(null) }
-    var pendingDropFiles by remember { mutableStateOf<List<File>>(emptyList()) }
+    var hoveredBreadcrumbPath by remember { mutableStateOf<String?>(null) }
 
     val clipboardState = FileOperations.currentClipboard
     val transferState = FileOperations.transferState
@@ -211,14 +212,18 @@ fun ExplorerScreen(
                 }
             )
 
-            // Path Breadcrumb Bar with Right Pointed Gauge Tag (opens Space Analyzer)
+            // Path Breadcrumb Bar with Right Pointed Gauge Tag (opens Space Analyzer) & Drop Targets for parent folders
             val totalSpace = currentDir.totalSpace
             val usedPct = if (totalSpace > 0) (((totalSpace - currentDir.freeSpace) * 100L) / totalSpace).toInt().coerceIn(0, 100) else 22
             EsPathBar(
                 currentDir = currentDir,
                 onNavigate = { target -> navigateToDir(target) },
                 percentage = usedPct,
-                onAnalyzerClick = onAnalyzerClick
+                onAnalyzerClick = onAnalyzerClick,
+                hoveredDropPath = hoveredBreadcrumbPath,
+                onSegmentBoundsChanged = { segPath, rect ->
+                    breadcrumbBoundsMap[segPath] = rect
+                }
             )
 
             // Inline Copy / Cut Progress Strip (never blocks the full screen)
@@ -261,38 +266,51 @@ fun ExplorerScreen(
                     }
             ) {
                 fun handleItemDragStart(item: FileItem, windowPos: Offset) {
-                    if (!selectedPaths.contains(item.path)) {
-                        selectedPaths = selectedPaths + item.path
-                    }
+                    draggedPrimaryItem = item
                     isDraggingItems = true
                     dragStartedMoving = false
                     dragWindowPos = windowPos
                     hoveredFolderPath = null
+                    hoveredBreadcrumbPath = null
                 }
 
                 fun handleItemDragMove(windowPos: Offset) {
                     dragStartedMoving = true
                     dragWindowPos = windowPos
-                    val targetEntry = folderBoundsMap.entries.firstOrNull { (dirPath, rect) ->
-                        rect.contains(windowPos) && !selectedPaths.contains(dirPath)
+                    val bcHit = breadcrumbBoundsMap.entries.firstOrNull { (segPath, rect) ->
+                        rect.inflate(10f).contains(windowPos) && segPath != currentDir.absolutePath
+                    }?.key
+                    hoveredBreadcrumbPath = bcHit
+                    if (bcHit != null) {
+                        hoveredFolderPath = null
+                    } else {
+                        val folderHit = folderBoundsMap.entries.firstOrNull { (dirPath, rect) ->
+                            rect.contains(windowPos) && !selectedPaths.contains(dirPath)
+                        }?.key
+                        hoveredFolderPath = folderHit
                     }
-                    hoveredFolderPath = targetEntry?.key
                 }
 
                 fun handleItemDragEnd() {
-                    val targetPath = hoveredFolderPath
+                    val targetPath = hoveredBreadcrumbPath ?: hoveredFolderPath
                     if (dragStartedMoving && targetPath != null) {
                         val destDir = File(targetPath)
                         val dragged = files.filter { selectedPaths.contains(it.path) }.map { it.file }
-                            .filter { it.absolutePath != destDir.absolutePath }
+                            .filter { it.absolutePath != destDir.absolutePath && it.parentFile?.absolutePath != destDir.absolutePath }
                         if (destDir.isDirectory && dragged.isNotEmpty()) {
-                            pendingDropTargetDir = destDir
-                            pendingDropFiles = dragged
+                            selectedPaths = emptySet()
+                            scope.launch {
+                                FileOperations.currentClipboard = FileOperations.ClipboardItem(dragged, FileOperations.ClipboardMode.CUT)
+                                FileOperations.paste(destDir)
+                                refreshFiles()
+                            }
                         }
                     }
                     isDraggingItems = false
                     dragStartedMoving = false
+                    draggedPrimaryItem = null
                     hoveredFolderPath = null
+                    hoveredBreadcrumbPath = null
                 }
 
                 AnimatedContent(
@@ -419,40 +437,85 @@ fun ExplorerScreen(
                     }
                 }
 
-                // Floating Drag Ghost Badge following finger (1:1 ES File Explorer)
+                // 1:1 ES File Explorer Real Floating File/Folder Icon following finger
                 if (isDraggingItems && dragStartedMoving) {
                     val localX = (dragWindowPos.x - containerWindowOffset.x).toInt()
                     val localY = (dragWindowPos.y - containerWindowOffset.y).toInt()
-                    val firstSelected = files.firstOrNull { selectedPaths.contains(it.path) }
-                    val targetFolderName = hoveredFolderPath?.let { File(it).name }
-                    Row(
-                        modifier = Modifier
-                            .offset { IntOffset(localX - 70, localY - 95) }
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Color(0xEE2B2F36))
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Image(
-                            painter = painterResource(
-                                if (firstSelected?.isDirectory == true) R.drawable.format_folder else R.drawable.format_document
-                            ),
-                            contentDescription = null,
-                            modifier = Modifier.size(28.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Column {
-                            Text(
-                                text = "${selectedPaths.size} item(ns)",
-                                fontSize = 12.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                            Text(
-                                text = if (targetFolderName != null) "Soltar em \"$targetFolderName\"" else "Arraste para uma pasta",
-                                fontSize = 10.5.sp,
-                                color = if (targetFolderName != null) Color(0xFF3FE0F0) else Color(0xFFB0B4BA)
-                            )
+                    val primaryItem = draggedPrimaryItem ?: files.firstOrNull { selectedPaths.contains(it.path) }
+                    if (primaryItem != null) {
+                        val dragIconRes = when {
+                            primaryItem.isDirectory -> R.drawable.format_folder
+                            primaryItem.extension == "apk" -> R.drawable.format_apk
+                            primaryItem.extension in setOf("jpg", "jpeg", "png", "webp", "gif") -> R.drawable.format_picture
+                            primaryItem.extension in setOf("mp4", "mkv", "avi", "mov") -> R.drawable.format_video
+                            primaryItem.extension in setOf("mp3", "flac", "wav", "m4a") -> R.drawable.format_music
+                            primaryItem.extension in setOf("zip", "rar", "7z", "tar") -> R.drawable.format_zip
+                            primaryItem.extension == "pdf" -> R.drawable.format_pdf
+                            primaryItem.extension in setOf("doc", "docx") -> R.drawable.format_word
+                            primaryItem.extension in setOf("xls", "xlsx", "csv") -> R.drawable.format_excel
+                            primaryItem.extension in setOf("ppt", "pptx") -> R.drawable.format_ppt
+                            primaryItem.extension in setOf("txt", "log", "json", "xml", "md", "ini", "conf", "prop") -> R.drawable.format_text
+                            else -> R.drawable.format_unkown
+                        }
+                        val folderBadge = if (primaryItem.isDirectory) getEsFolderBadgeRes(primaryItem.name) else null
+                        Box(
+                            modifier = Modifier
+                                .offset { IntOffset(localX - 36, localY - 46) }
+                                .size(72.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (selectedPaths.size > 1) {
+                                // Stacked shadow icon behind when dragging multiple items
+                                Image(
+                                    painter = painterResource(dragIconRes),
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .size(58.dp)
+                                        .offset(x = 6.dp, y = (-5).dp),
+                                    alpha = 0.55f
+                                )
+                            }
+                            if (isMediaFile(primaryItem.file)) {
+                                FileThumbnail(
+                                    file = primaryItem.file,
+                                    fallbackRes = dragIconRes,
+                                    modifier = Modifier
+                                        .size(62.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                )
+                            } else {
+                                Image(
+                                    painter = painterResource(dragIconRes),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(62.dp)
+                                )
+                            }
+                            if (primaryItem.isDirectory && folderBadge != null) {
+                                Image(
+                                    painter = painterResource(folderBadge),
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .size(26.dp)
+                                        .offset(y = 3.dp)
+                                )
+                            }
+                            if (selectedPaths.size > 1) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF2F7DF6))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "${selectedPaths.size}",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -579,67 +642,6 @@ fun ExplorerScreen(
                 )
             }
         }
-    }
-
-    // 1:1 Drag & Drop Action Dialog (Mover aqui vs Copiar aqui)
-    if (pendingDropTargetDir != null && pendingDropFiles.isNotEmpty()) {
-        val destDir = pendingDropTargetDir!!
-        val itemsToProcess = pendingDropFiles
-        OverlayDialog(
-            show = true,
-            onDismissRequest = {
-                pendingDropTargetDir = null
-                pendingDropFiles = emptyList()
-            },
-            title = "Soltar em \"${destDir.name}\"",
-            summary = "O que deseja fazer com ${itemsToProcess.size} item(ns) selecionado(s)?",
-            content = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        TextButton(
-                            text = "Copiar aqui",
-                            onClick = {
-                                pendingDropTargetDir = null
-                                pendingDropFiles = emptyList()
-                                selectedPaths = emptySet()
-                                scope.launch {
-                                    FileOperations.currentClipboard = FileOperations.ClipboardItem(itemsToProcess, FileOperations.ClipboardMode.COPY)
-                                    FileOperations.paste(destDir)
-                                    refreshFiles()
-                                }
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-                        TextButton(
-                            text = "Mover aqui",
-                            colors = ButtonDefaults.textButtonColorsPrimary(),
-                            onClick = {
-                                pendingDropTargetDir = null
-                                pendingDropFiles = emptyList()
-                                selectedPaths = emptySet()
-                                scope.launch {
-                                    FileOperations.currentClipboard = FileOperations.ClipboardItem(itemsToProcess, FileOperations.ClipboardMode.CUT)
-                                    FileOperations.paste(destDir)
-                                    refreshFiles()
-                                }
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    TextButton(
-                        text = "Cancelar",
-                        onClick = {
-                            pendingDropTargetDir = null
-                            pendingDropFiles = emptyList()
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-        )
     }
 
     // New Type Choice (Pasta vs Arquivo)

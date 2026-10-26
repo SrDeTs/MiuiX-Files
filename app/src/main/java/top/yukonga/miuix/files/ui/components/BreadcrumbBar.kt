@@ -2,6 +2,7 @@ package top.yukonga.miuix.files.ui.components
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -15,8 +16,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -87,7 +91,9 @@ fun EsPathBar(
     onNavigate: (File) -> Unit,
     modifier: Modifier = Modifier,
     percentage: Int = 22,
-    onAnalyzerClick: (() -> Unit)? = null
+    onAnalyzerClick: (() -> Unit)? = null,
+    hoveredDropPath: String? = null,
+    onSegmentBoundsChanged: ((String, Rect) -> Unit)? = null
 ) {
     val scrollState = rememberScrollState()
 
@@ -119,6 +125,7 @@ fun EsPathBar(
         ) {
             segments.forEachIndexed { index, file ->
                 val isLast = index == segments.size - 1
+                val isHoveredDrop = !isLast && hoveredDropPath == file.absolutePath
                 val displayName = when {
                     index == 0 -> "/"
                     file.name.isEmpty() -> "/"
@@ -128,7 +135,18 @@ fun EsPathBar(
                 val interactionSource = remember { MutableInteractionSource() }
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
+                        .onGloballyPositioned { coords ->
+                            if (!isLast) {
+                                onSegmentBoundsChanged?.invoke(file.absolutePath, coords.boundsInWindow())
+                            }
+                        }
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (isHoveredDrop) Color(0xFF3FE0F0).copy(alpha = 0.34f) else Color.Transparent)
+                        .then(
+                            if (isHoveredDrop) {
+                                Modifier.border(1.5.dp, Color(0xFF3FE0F0), RoundedCornerShape(6.dp))
+                            } else Modifier
+                        )
                         .pressable(
                             interactionSource = interactionSource,
                             indication = SinkFeedback()
@@ -138,13 +156,13 @@ fun EsPathBar(
                             indication = null,
                             enabled = !isLast
                         ) { onNavigate(file) }
-                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                        .padding(horizontal = 6.dp, vertical = 3.dp)
                 ) {
                     Text(
                         text = displayName,
                         fontSize = 12.5.sp,
-                        fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isLast) EsTextPrimary else EsTextSecondary
+                        fontWeight = if (isLast || isHoveredDrop) FontWeight.Bold else FontWeight.Normal,
+                        color = if (isLast || isHoveredDrop) EsTextPrimary else EsTextSecondary
                     )
                 }
 

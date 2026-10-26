@@ -5,7 +5,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -134,23 +134,20 @@ fun FileGridItem(
                 onLongClick = onLongClick
             )
             .then(
-                if (onDragStart != null) {
-                    Modifier.pointerInput(item.path) {
+                if (isSelected && onDragStart != null) {
+                    Modifier.pointerInput(item.path, isSelected) {
                         var dragStarted = false
-                        detectDragGesturesAfterLongPress(
+                        detectDragGestures(
                             onDragStart = { localPos ->
-                                currentOnLongClick()
-                                dragStarted = false
+                                dragStarted = true
                                 currentOnDragStart?.invoke(itemWindowOffset + localPos)
                             },
                             onDrag = { change, _ ->
                                 change.consume()
-                                dragStarted = true
                                 currentOnDragMove?.invoke(itemWindowOffset + change.position)
                             },
                             onDragEnd = {
                                 if (dragStarted) currentOnDragEnd?.invoke()
-                                else currentOnDragEnd?.invoke()
                                 dragStarted = false
                             },
                             onDragCancel = {
