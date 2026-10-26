@@ -320,41 +320,51 @@ fun ExplorerScreen(
                     .onGloballyPositioned { coords ->
                         containerWindowOffset = coords.boundsInWindow().topLeft
                     }
-                    .pointerInput(isSelectionMode, currentDir) {
-                        if (!isSelectionMode) return@pointerInput
+                    .pointerInput(currentDir) {
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                             val startWindowPos = containerWindowOffset + down.position
-                            // Only start dragging if the finger touched an ALREADY selected item
-                            val hitSelectedPath = currentSelectedPaths.firstOrNull { path ->
-                                itemBoundsMap[path]?.contains(startWindowPos) == true
-                            }
-                            if (hitSelectedPath != null) {
-                                val primaryItem = currentDisplayFiles.firstOrNull { it.path == hitSelectedPath }
-                                    ?: currentDisplayFiles.firstOrNull { currentSelectedPaths.contains(it.path) }
-                                var draggingActive = false
-                                val slop = viewConfiguration.touchSlop * 0.7f
-                                while (true) {
-                                    val event = awaitPointerEvent(PointerEventPass.Initial)
-                                    val change = event.changes.firstOrNull { it.id == down.id } ?: event.changes.firstOrNull()
-                                    if (change == null || !change.pressed) {
-                                        if (draggingActive) {
-                                            handleItemDragEnd()
-                                        }
-                                        break
+                            var draggingActive = false
+                            val slop = viewConfiguration.touchSlop * 0.65f
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: event.changes.firstOrNull()
+                                if (change == null || !change.pressed) {
+                                    if (draggingActive) {
+                                        handleItemDragEnd()
                                     }
-                                    val currentWindowPos = containerWindowOffset + change.position
-                                    if (!draggingActive) {
-                                        if ((currentWindowPos - startWindowPos).getDistance() > slop && primaryItem != null) {
+                                    break
+                                }
+                                val currentWindowPos = containerWindowOffset + change.position
+                                if (!draggingActive) {
+                                    // Works both when:
+                                    // 1) Item was ALREADY selected and user drags it, OR
+                                    // 2) User long-pressed an item (which selects it while finger is still down) and immediately drags without lifting finger!
+                                    if (currentSelectedPaths.isNotEmpty() && (currentWindowPos - startWindowPos).getDistance() > slop) {
+                                        val hitSelectedPath = currentSelectedPaths.firstOrNull { path ->
+                                            val r = itemBoundsMap[path]
+                                            r != null && (r.inflate(8f).contains(startWindowPos) || r.inflate(8f).contains(currentWindowPos))
+                                        }
+                                        val primaryItem = if (hitSelectedPath != null) {
+                                            currentDisplayFiles.firstOrNull { it.path == hitSelectedPath }
+                                        } else if (currentSelectedPaths.size == 1) {
+                                            val onlyPath = currentSelectedPaths.first()
+                                            val r = itemBoundsMap[onlyPath]
+                                            if (r == null || r.inflate(24f).contains(startWindowPos) || r.inflate(24f).contains(currentWindowPos)) {
+                                                currentDisplayFiles.firstOrNull { it.path == onlyPath }
+                                            } else null
+                                        } else null
+
+                                        if (primaryItem != null) {
                                             draggingActive = true
                                             handleItemDragStart(primaryItem, currentWindowPos)
                                             handleItemDragMove(currentWindowPos)
                                             event.changes.forEach { it.consume() }
                                         }
-                                    } else {
-                                        handleItemDragMove(currentWindowPos)
-                                        event.changes.forEach { it.consume() }
                                     }
+                                } else {
+                                    handleItemDragMove(currentWindowPos)
+                                    event.changes.forEach { it.consume() }
                                 }
                             }
                         }
@@ -503,9 +513,12 @@ fun ExplorerScreen(
                             else -> R.drawable.format_unkown
                         }
                         val folderBadge = if (primaryItem.isDirectory) getEsFolderBadgeRes(primaryItem.name) else null
+                        val density = androidx.compose.ui.platform.LocalDensity.current
+                        val halfSizePx = with(density) { 36.dp.roundToPx() }
+                        val offsetYAdjPx = with(density) { 46.dp.roundToPx() }
                         Box(
                             modifier = Modifier
-                                .offset { IntOffset(localX - 36, localY - 46) }
+                                .offset { IntOffset(localX - halfSizePx, localY - offsetYAdjPx) }
                                 .size(72.dp),
                             contentAlignment = Alignment.Center
                         ) {
