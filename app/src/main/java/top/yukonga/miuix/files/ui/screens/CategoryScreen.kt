@@ -31,6 +31,7 @@ import top.yukonga.miuix.files.core.model.FileItem
 import top.yukonga.miuix.files.core.model.SortOption
 import top.yukonga.miuix.files.core.storage.FileOperations
 import top.yukonga.miuix.files.core.storage.StorageManager
+import top.yukonga.miuix.files.ui.components.EsAnalyzerPercentageTag
 import top.yukonga.miuix.files.ui.components.EsApkPropertiesDialog
 import top.yukonga.miuix.files.ui.components.EsBgColor
 import top.yukonga.miuix.files.ui.components.EsClipboardSideTab
@@ -65,6 +66,7 @@ fun CategoryScreen(
     onTabSelect: (EsWindowTab) -> Unit = {},
     onTabClose: (EsWindowTab) -> Unit = {},
     onAddTab: (() -> Unit)? = null,
+    onAnalyzerClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -140,10 +142,25 @@ fun CategoryScreen(
                 activeTabId = activeTabId,
                 onTabSelect = onTabSelect,
                 onTabClose = onTabClose,
-                onAddTab = onAddTab
+                onAddTab = onAddTab,
+                isSelectionMode = isSelectionMode,
+                selectedCount = selectedPaths.size,
+                totalCount = displayFiles.size,
+                onSelectAll = {
+                    selectedPaths = if (selectedPaths.size == displayFiles.size && displayFiles.isNotEmpty()) {
+                        emptySet()
+                    } else {
+                        displayFiles.map { it.path }.toSet()
+                    }
+                }
             )
 
-            // Path Header Bar with Gauge Chip
+            // Path Header Bar with Pointed Gauge Tag
+            val extRoot = remember { android.os.Environment.getExternalStorageDirectory() }
+            val usedPct = remember(extRoot) {
+                val total = extRoot.totalSpace
+                if (total > 0) (((total - extRoot.freeSpace) * 100L) / total).toInt().coerceIn(0, 100) else 22
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -159,28 +176,10 @@ fun CategoryScreen(
                     color = EsTextPrimary
                 )
 
-                // Right Gauge Chip
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surfaceContainerHighest)
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Image(
-                        painter = painterResource(R.drawable.toolbar_diskanalyzer_nomal),
-                        contentDescription = null,
-                        modifier = Modifier.size(13.dp),
-                        colorFilter = ColorFilter.tint(EsTextSecondary)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "22%",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = EsTextPrimary
-                    )
-                }
+                EsAnalyzerPercentageTag(
+                    percentage = usedPct,
+                    onClick = onAnalyzerClick
+                )
             }
 
             // Inline Copy / Cut Progress Strip

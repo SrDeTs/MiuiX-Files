@@ -163,42 +163,63 @@ fun EsClipboardSideTab(
                 enter = expandHorizontally(animationSpec = folmeSpring(damping = 0.85f, response = 0.3f), expandFrom = Alignment.End) + fadeIn(),
                 exit = shrinkHorizontally(animationSpec = folmeSpring(damping = 0.9f, response = 0.22f), shrinkTowards = Alignment.End) + fadeOut()
             ) {
-                val modeLabel = if (clip.mode == FileOperations.ClipboardMode.CUT) "Recortar" else "Copiar"
+                val modeLabel = if (clip.mode == FileOperations.ClipboardMode.CUT) "Mover" else "Copiar"
                 Row(
                     modifier = Modifier
-                        .padding(end = 4.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xEE31353D))
-                        .clickable { onPaste() }
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(end = 6.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surfaceContainer)
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Column(modifier = Modifier.widthIn(max = 170.dp)) {
+                    Column(modifier = Modifier.widthIn(max = 155.dp)) {
                         Text(
-                            text = "$modeLabel (${clip.files.size})",
-                            fontSize = 12.sp,
+                            text = "$modeLabel ${clip.files.size} itens",
+                            fontSize = 13.5.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = EsTextPrimary,
                             maxLines = 1
                         )
+                        Spacer(Modifier.height(2.dp))
                         Text(
-                            text = clip.files.firstOrNull()?.name ?: "",
-                            fontSize = 10.5.sp,
-                            color = Color(0xFFB0B3B8),
-                            maxLines = 1,
+                            text = "Navegue até a pasta de destino",
+                            fontSize = 11.sp,
+                            color = EsTextSecondary,
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        text = "✕",
-                        fontSize = 13.sp,
-                        color = Color(0xFFFF6B6B),
+                    Row(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surfaceContainerHighest)
                             .clickable { onClear() }
-                            .padding(4.dp)
-                    )
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Cancelar",
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = EsTextPrimary
+                        )
+                    }
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.primary)
+                            .clickable { onPaste() }
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Colar",
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
                 }
             }
 

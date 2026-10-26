@@ -55,6 +55,7 @@ fun ExplorerScreen(
     onTabClose: (EsWindowTab) -> Unit = {},
     onAddTab: (() -> Unit)? = null,
     onCurrentDirChange: (File) -> Unit = {},
+    onAnalyzerClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -92,6 +93,7 @@ fun ExplorerScreen(
     var showSearchBar by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
     var showSelectionMoreDialog by remember { mutableStateOf(false) }
+    var showOpenAsDialog by remember { mutableStateOf(false) }
     var showPropertiesDialog by remember { mutableStateOf(false) }
     var tappedApkFile by remember { mutableStateOf<File?>(null) }
 
@@ -178,16 +180,27 @@ fun ExplorerScreen(
                 activeTabId = activeTabId,
                 onTabSelect = onTabSelect,
                 onTabClose = onTabClose,
-                onAddTab = onAddTab
+                onAddTab = onAddTab,
+                isSelectionMode = isSelectionMode,
+                selectedCount = selectedPaths.size,
+                totalCount = displayFiles.size,
+                onSelectAll = {
+                    selectedPaths = if (selectedPaths.size == displayFiles.size && displayFiles.isNotEmpty()) {
+                        emptySet()
+                    } else {
+                        displayFiles.map { it.path }.toSet()
+                    }
+                }
             )
 
-            // Path Breadcrumb Bar with Right Gauge Chip
+            // Path Breadcrumb Bar with Right Pointed Gauge Tag (opens Space Analyzer)
             val totalSpace = currentDir.totalSpace
             val usedPct = if (totalSpace > 0) (((totalSpace - currentDir.freeSpace) * 100L) / totalSpace).toInt().coerceIn(0, 100) else 22
             EsPathBar(
                 currentDir = currentDir,
                 onNavigate = { target -> navigateToDir(target) },
-                percentage = usedPct
+                percentage = usedPct,
+                onAnalyzerClick = onAnalyzerClick
             )
 
             // Inline Copy / Cut Progress Strip (never blocks the full screen)
@@ -688,6 +701,16 @@ fun ExplorerScreen(
             title = "Ações (${selectedFiles.size})",
             content = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (selectedFiles.size == 1 && selectedFiles.first().isFile) {
+                        TextButton(
+                            text = "Abrir como...",
+                            onClick = {
+                                showSelectionMoreDialog = false
+                                showOpenAsDialog = true
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                     if (selectedFiles.size == 1) {
                         val single = selectedFiles.first()
                         val isFav = remember(single) { MiuiXFilesPreferences.isFavorite(context, single) }
@@ -750,7 +773,7 @@ fun ExplorerScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                     TextButton(
-                        text = "Propriedades e Checksum (MD5)",
+                        text = "Propriedades",
                         onClick = {
                             showSelectionMoreDialog = false
                             showPropertiesDialog = true
@@ -769,13 +792,88 @@ fun ExplorerScreen(
         )
     }
 
+    if (showOpenAsDialog) {
+        val targetFile = remember(files, selectedPaths) {
+            files.firstOrNull { selectedPaths.contains(it.path) }?.file
+        }
+        fun launchOpenAs(mimeType: String) {
+            showOpenAsDialog = false
+            val f = targetFile ?: return
+            selectedPaths = emptySet()
+            runCatching {
+                val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", f)
+                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, mimeType)
+                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                context.startActivity(android.content.Intent.createChooser(intent, "Abrir como"))
+            }
+        }
+        OverlayDialog(
+            show = showOpenAsDialog,
+            onDismissRequest = { showOpenAsDialog = false },
+            title = "Abrir como",
+            content = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(text = "Texto", onClick = { launchOpenAs("text/plain") }, modifier = Modifier.fillMaxWidth())
+                    TextButton(text = "Áudio", onClick = { launchOpenAs("audio/*") }, modifier = Modifier.fillMaxWidth())
+                    TextButton(text = "Vídeo", onClick = { launchOpenAs("video/*") }, modifier = Modifier.fillMaxWidth())
+                    TextButton(text = "Imagem", onClick = { launchOpenAs("image/*") }, modifier = Modifier.fillMaxWidth())
+                    TextButton(text = "Outros", onClick = { launchOpenAs("*/*") }, modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(
+                        text = "Cancelar",
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                        onClick = { showOpenAsDialog = false },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        )
+    }
+
     if (showPropertiesDialog) {
         val selectedFiles = remember(files, selectedPaths) {
             files.filter { selectedPaths.contains(it.path) }.map { it.file }
         }
         val first = selectedFiles.firstOrNull()
         var md5 by remember(first) { mutableStateOf("Calculando...") }
-        LaunchedEffect(first) {
+        var totalBytes by remember(selectedFiles) {
+            mutableLongStateOf(selectedFiles.sumOf { if (it.isDirectory) 0L else it.length() })
+        }
+        var totalFilesCount by remember(selectedFiles) { mutableIntStateOf(0) }
+        var totalFoldersCount by remember(selectedFiles) { mutableIntStateOf(0) }
+        var isCalculatingSize by remember(selectedFiles) { mutableStateOf(selectedFiles.any { it.isDirectory }) }
+
+        LaunchedEffect(selectedFiles) {
+            if (selectedFiles.any { it.isDirectory }) {
+                isCalculatingSize = true
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    var bytes = 0L
+                    var fCount = 0
+                    var dCount = 0
+                    for (root in selectedFiles) {
+                        if (root.isFile) {
+                            bytes += root.length()
+                            fCount++
+                        } else {
+                            root.walkTopDown().forEach { sub ->
+                                if (sub != root) {
+                                    if (sub.isDirectory) dCount++
+                                    else {
+                                        fCount++
+                                        bytes += sub.length()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    totalBytes = bytes
+                    totalFilesCount = fCount
+                    totalFoldersCount = dCount
+                }
+                isCalculatingSize = false
+            }
             if (first != null && first.isFile && first.length() < 150 * 1024 * 1024) {
                 md5 = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     runCatching {
@@ -799,13 +897,21 @@ fun ExplorerScreen(
             content = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (first != null) {
-                        Text("Nome: ${first.name}", fontSize = 13.5.sp, color = EsTextPrimary, fontWeight = FontWeight.Bold)
-                        Text("Caminho: ${first.absolutePath}", fontSize = 12.sp, color = EsTextSecondary)
-                        Text("Tipo: ${if (first.isDirectory) "Pasta" else "Arquivo (.${first.extension})"}", fontSize = 12.sp, color = EsTextSecondary)
-                        Text("Tamanho: ${StorageManager.formatFileSize(selectedFiles.sumOf { if (it.isDirectory) 0L else it.length() })}", fontSize = 12.sp, color = EsTextSecondary)
+                        val titleName = if (selectedFiles.size == 1) first.name else "${selectedFiles.size} itens selecionados"
+                        Text("Nome: $titleName", fontSize = 13.5.sp, color = EsTextPrimary, fontWeight = FontWeight.Bold)
+                        Text("Caminho: ${if (selectedFiles.size == 1) first.absolutePath else currentDir.absolutePath}", fontSize = 12.sp, color = EsTextSecondary)
+                        if (selectedFiles.size == 1) {
+                            Text("Tipo: ${if (first.isDirectory) "Pasta" else "Arquivo (.${first.extension})"}", fontSize = 12.sp, color = EsTextSecondary)
+                        }
+                        if (selectedFiles.any { it.isDirectory }) {
+                            val countLabel = if (isCalculatingSize) "Calculando..." else "$totalFilesCount arquivos, $totalFoldersCount pastas"
+                            Text("Contém: $countLabel", fontSize = 12.sp, color = EsTextSecondary)
+                        }
+                        val sizeLabel = if (isCalculatingSize) "${StorageManager.formatFileSize(totalBytes)} (calculando...)" else "${StorageManager.formatFileSize(totalBytes)} ($totalBytes B)"
+                        Text("Tamanho: $sizeLabel", fontSize = 12.sp, color = EsTextSecondary)
                         Text("Modificado: ${StorageManager.formatDate(first.lastModified())}", fontSize = 12.sp, color = EsTextSecondary)
                         Text("Permissões: ${if (first.canRead()) "r" else "-"}${if (first.canWrite()) "w" else "-"}${if (first.canExecute()) "x" else "-"}", fontSize = 12.sp, color = EsTextSecondary)
-                        if (first.isFile) {
+                        if (selectedFiles.size == 1 && first.isFile) {
                             Text("MD5: $md5", fontSize = 11.5.sp, color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.primary)
                         }
                     }

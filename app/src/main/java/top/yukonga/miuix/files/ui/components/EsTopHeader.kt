@@ -45,7 +45,11 @@ fun EsTopHeader(
     activeTabId: String = "",
     onTabSelect: (EsWindowTab) -> Unit = {},
     onTabClose: (EsWindowTab) -> Unit = {},
-    onAddTab: (() -> Unit)? = null
+    onAddTab: (() -> Unit)? = null,
+    isSelectionMode: Boolean = false,
+    selectedCount: Int = 0,
+    totalCount: Int = 0,
+    onSelectAll: (() -> Unit)? = null
 ) {
     val scrollState = rememberScrollState()
     LaunchedEffect(activeTabId, tabs.size) {
@@ -60,7 +64,6 @@ fun EsTopHeader(
     }
 
     val activePillBg = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surfaceContainerHighest
-    val inactivePillBg = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.surfaceContainer
     val primaryText = EsTextPrimary
     val secondaryText = EsTextSecondary
 
@@ -72,7 +75,7 @@ fun EsTopHeader(
             .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Hamburger Menu Icon (☰) — abre a gaveta lateral em todas as telas
+        // Hamburger Menu Icon (☰) ou Cancelar Seleção (✕)
         val menuInteraction = remember { MutableInteractionSource() }
         Box(
             modifier = Modifier
@@ -99,7 +102,50 @@ fun EsTopHeader(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        if (tabs.isEmpty()) {
+        if (isSelectionMode) {
+            // 1:1 Selection Header: [ count / total ] ... [ Selecionar Tudo / Desmarcar ]
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = if (totalCount > 0) "$selectedCount/$totalCount" else "$selectedCount selecionado(s)",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = primaryText,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+
+                if (onSelectAll != null) {
+                    val allSelected = totalCount > 0 && selectedCount == totalCount
+                    val selectAllInteraction = remember { MutableInteractionSource() }
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(activePillBg)
+                            .pressable(
+                                interactionSource = selectAllInteraction,
+                                indication = SinkFeedback()
+                            )
+                            .clickable(
+                                interactionSource = selectAllInteraction,
+                                indication = null,
+                                onClick = onSelectAll
+                            )
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (allSelected) "Desmarcar" else "Selecionar tudo",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = primaryText
+                        )
+                    }
+                }
+            }
+        } else if (tabs.isEmpty()) {
             // Fallback single Tab Pill Capsule
             val tabInteraction = remember { MutableInteractionSource() }
             Row(
@@ -146,14 +192,14 @@ fun EsTopHeader(
                 }
             }
         } else {
-            // 1:1 Multi-tab strip matching ES File Explorer:
-            // Active tab shows full pill [icon + title + ✕]; inactive tabs show compact icon or subtle pill so user can switch freely!
+            // 1:1 Multi-tab strip matching original ES File Explorer:
+            // Active tab shows full pill [icon + title + ✕]; inactive tabs show ONLY standalone icon without pill or label!
             Row(
                 modifier = Modifier
                     .weight(1f)
                     .horizontalScroll(scrollState),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 tabs.forEach { tab ->
                     val isActive = tab.id == activeTabId
@@ -208,11 +254,11 @@ fun EsTopHeader(
                             }
                         }
                     } else {
-                        // Inactive tab: compact clickable pill with icon + title
-                        Row(
+                        // 1:1 ES File Explorer inactive tab: standalone icon only (no pill background, no text label)
+                        Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(inactivePillBg)
+                                .size(30.dp)
+                                .clip(CircleShape)
                                 .pressable(
                                     interactionSource = tabInteraction,
                                     indication = SinkFeedback()
@@ -221,22 +267,14 @@ fun EsTopHeader(
                                     interactionSource = tabInteraction,
                                     indication = null,
                                     onClick = { onTabSelect(tab) }
-                                )
-                                .padding(horizontal = 9.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                ),
+                            contentAlignment = Alignment.Center
                         ) {
                             Image(
                                 painter = painterResource(tab.iconRes),
                                 contentDescription = tab.title,
-                                modifier = Modifier.size(15.dp),
+                                modifier = Modifier.size(18.dp),
                                 colorFilter = if (tab.tintIcon) ColorFilter.tint(secondaryText) else null
-                            )
-                            Spacer(modifier = Modifier.width(5.dp))
-                            Text(
-                                text = tab.title,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Normal,
-                                color = secondaryText
                             )
                         }
                     }

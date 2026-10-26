@@ -324,7 +324,8 @@ class MainActivity : ComponentActivity() {
                                             if (idx >= 0) {
                                                 windows[idx] = windows[idx].copy(screen = Screen.Explorer(newDir))
                                             }
-                                        }
+                                        },
+                                        onAnalyzerClick = { overlayStack.add(Screen.Analyzer) }
                                     )
                                 }
                                 is Screen.Category -> {
@@ -341,7 +342,8 @@ class MainActivity : ComponentActivity() {
                                         activeTabId = activeWindow.id,
                                         onTabSelect = onSelectTab,
                                         onTabClose = onCloseTab,
-                                        onAddTab = onAddNewLocalTab
+                                        onAddTab = onAddNewLocalTab,
+                                        onAnalyzerClick = { overlayStack.add(Screen.Analyzer) }
                                     )
                                 }
                                 is Screen.Cleaner -> {

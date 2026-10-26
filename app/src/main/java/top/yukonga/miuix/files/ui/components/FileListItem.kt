@@ -138,7 +138,10 @@ fun FileListItem(
             )
             Spacer(modifier = Modifier.height(2.dp))
             val subtitle = if (item.isDirectory) {
-                StorageManager.formatDate(item.lastModified)
+                val count = remember(item.path, item.lastModified) {
+                    item.file.list()?.size ?: 0
+                }
+                "$count itens | ${StorageManager.formatDate(item.lastModified)}"
             } else {
                 "${StorageManager.formatFileSize(item.size)} | ${StorageManager.formatDate(item.lastModified)}"
             }
