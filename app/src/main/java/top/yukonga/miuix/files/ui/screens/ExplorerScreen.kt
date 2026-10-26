@@ -6,6 +6,8 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,6 +25,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
@@ -106,6 +110,7 @@ fun ExplorerScreen(
     var tappedApkFile by remember { mutableStateOf<File?>(null) }
 
     // 1:1 ES File Explorer Drag & Drop state (only active on ALREADY selected items; moves directly without popup)
+    val itemBoundsMap = remember(currentDir) { mutableStateMapOf<String, Rect>() }
     val folderBoundsMap = remember(currentDir) { mutableStateMapOf<String, Rect>() }
     val breadcrumbBoundsMap = remember(currentDir) { mutableStateMapOf<String, Rect>() }
     var containerWindowOffset by remember { mutableStateOf(Offset.Zero) }
@@ -258,61 +263,103 @@ fun ExplorerScreen(
             }
 
             // Content Area (Grid or List) with MIUIX Folme spring transitions, overscroll, and 1:1 Drag & Drop
+            val currentSelectedPaths by rememberUpdatedState(selectedPaths)
+            val currentDisplayFiles by rememberUpdatedState(displayFiles)
+
+            fun handleItemDragStart(item: FileItem, windowPos: Offset) {
+                draggedPrimaryItem = item
+                isDraggingItems = true
+                dragStartedMoving = true
+                dragWindowPos = windowPos
+                hoveredFolderPath = null
+                hoveredBreadcrumbPath = null
+            }
+
+            fun handleItemDragMove(windowPos: Offset) {
+                dragStartedMoving = true
+                dragWindowPos = windowPos
+                val bcHit = breadcrumbBoundsMap.entries.firstOrNull { (segPath, rect) ->
+                    rect.inflate(14f).contains(windowPos) && segPath != currentDir.absolutePath
+                }?.key
+                hoveredBreadcrumbPath = bcHit
+                if (bcHit != null) {
+                    hoveredFolderPath = null
+                } else {
+                    val folderHit = folderBoundsMap.entries.firstOrNull { (dirPath, rect) ->
+                        rect.contains(windowPos) && !currentSelectedPaths.contains(dirPath)
+                    }?.key
+                    hoveredFolderPath = folderHit
+                }
+            }
+
+            fun handleItemDragEnd() {
+                val targetPath = hoveredBreadcrumbPath ?: hoveredFolderPath
+                if (dragStartedMoving && targetPath != null) {
+                    val destDir = File(targetPath)
+                    val dragged = currentDisplayFiles.filter { currentSelectedPaths.contains(it.path) }.map { it.file }
+                        .filter { it.absolutePath != destDir.absolutePath && it.parentFile?.absolutePath != destDir.absolutePath }
+                    if (destDir.isDirectory && dragged.isNotEmpty()) {
+                        selectedPaths = emptySet()
+                        scope.launch {
+                            FileOperations.currentClipboard = FileOperations.ClipboardItem(dragged, FileOperations.ClipboardMode.CUT)
+                            FileOperations.paste(destDir)
+                            refreshFiles()
+                        }
+                    }
+                }
+                isDraggingItems = false
+                dragStartedMoving = false
+                draggedPrimaryItem = null
+                hoveredFolderPath = null
+                hoveredBreadcrumbPath = null
+            }
+
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .onGloballyPositioned { coords ->
                         containerWindowOffset = coords.boundsInWindow().topLeft
                     }
-            ) {
-                fun handleItemDragStart(item: FileItem, windowPos: Offset) {
-                    draggedPrimaryItem = item
-                    isDraggingItems = true
-                    dragStartedMoving = false
-                    dragWindowPos = windowPos
-                    hoveredFolderPath = null
-                    hoveredBreadcrumbPath = null
-                }
-
-                fun handleItemDragMove(windowPos: Offset) {
-                    dragStartedMoving = true
-                    dragWindowPos = windowPos
-                    val bcHit = breadcrumbBoundsMap.entries.firstOrNull { (segPath, rect) ->
-                        rect.inflate(10f).contains(windowPos) && segPath != currentDir.absolutePath
-                    }?.key
-                    hoveredBreadcrumbPath = bcHit
-                    if (bcHit != null) {
-                        hoveredFolderPath = null
-                    } else {
-                        val folderHit = folderBoundsMap.entries.firstOrNull { (dirPath, rect) ->
-                            rect.contains(windowPos) && !selectedPaths.contains(dirPath)
-                        }?.key
-                        hoveredFolderPath = folderHit
-                    }
-                }
-
-                fun handleItemDragEnd() {
-                    val targetPath = hoveredBreadcrumbPath ?: hoveredFolderPath
-                    if (dragStartedMoving && targetPath != null) {
-                        val destDir = File(targetPath)
-                        val dragged = files.filter { selectedPaths.contains(it.path) }.map { it.file }
-                            .filter { it.absolutePath != destDir.absolutePath && it.parentFile?.absolutePath != destDir.absolutePath }
-                        if (destDir.isDirectory && dragged.isNotEmpty()) {
-                            selectedPaths = emptySet()
-                            scope.launch {
-                                FileOperations.currentClipboard = FileOperations.ClipboardItem(dragged, FileOperations.ClipboardMode.CUT)
-                                FileOperations.paste(destDir)
-                                refreshFiles()
+                    .pointerInput(isSelectionMode, currentDir) {
+                        if (!isSelectionMode) return@pointerInput
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                            val startWindowPos = containerWindowOffset + down.position
+                            // Only start dragging if the finger touched an ALREADY selected item
+                            val hitSelectedPath = currentSelectedPaths.firstOrNull { path ->
+                                itemBoundsMap[path]?.contains(startWindowPos) == true
+                            }
+                            if (hitSelectedPath != null) {
+                                val primaryItem = currentDisplayFiles.firstOrNull { it.path == hitSelectedPath }
+                                    ?: currentDisplayFiles.firstOrNull { currentSelectedPaths.contains(it.path) }
+                                var draggingActive = false
+                                val slop = viewConfiguration.touchSlop * 0.7f
+                                while (true) {
+                                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                                    val change = event.changes.firstOrNull { it.id == down.id } ?: event.changes.firstOrNull()
+                                    if (change == null || !change.pressed) {
+                                        if (draggingActive) {
+                                            handleItemDragEnd()
+                                        }
+                                        break
+                                    }
+                                    val currentWindowPos = containerWindowOffset + change.position
+                                    if (!draggingActive) {
+                                        if ((currentWindowPos - startWindowPos).getDistance() > slop && primaryItem != null) {
+                                            draggingActive = true
+                                            handleItemDragStart(primaryItem, currentWindowPos)
+                                            handleItemDragMove(currentWindowPos)
+                                            event.changes.forEach { it.consume() }
+                                        }
+                                    } else {
+                                        handleItemDragMove(currentWindowPos)
+                                        event.changes.forEach { it.consume() }
+                                    }
+                                }
                             }
                         }
                     }
-                    isDraggingItems = false
-                    dragStartedMoving = false
-                    draggedPrimaryItem = null
-                    hoveredFolderPath = null
-                    hoveredBreadcrumbPath = null
-                }
-
+            ) {
                 AnimatedContent(
                     targetState = Pair(currentDir.absolutePath, isGridView),
                     transitionSpec = {
@@ -355,6 +402,7 @@ fun ExplorerScreen(
                         // 1:1 4-Column (or 5-Column Compact) Grid View with MIUIX overScrollVertical
                         LazyVerticalGrid(
                             columns = GridCells.Fixed(viewGridColumns),
+                            userScrollEnabled = !isDraggingItems,
                             modifier = Modifier.fillMaxSize().overScrollVertical(),
                             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -369,11 +417,9 @@ fun ExplorerScreen(
                                     isSelectionMode = isSelectionMode,
                                     isDropTarget = isDropTarget,
                                     onBoundsChanged = { rect ->
+                                        itemBoundsMap[item.path] = rect
                                         if (item.isDirectory) folderBoundsMap[item.path] = rect
                                     },
-                                    onDragStart = { pos -> handleItemDragStart(item, pos) },
-                                    onDragMove = { pos -> handleItemDragMove(pos) },
-                                    onDragEnd = { handleItemDragEnd() },
                                     modifier = Modifier.animateItem(
                                         fadeInSpec = folmeSpring(damping = 0.9f, response = 0.25f),
                                         placementSpec = folmeSpring(damping = 0.84f, response = 0.30f, visibilityThreshold = IntOffset(1, 1)),
@@ -397,6 +443,7 @@ fun ExplorerScreen(
                     } else {
                         // List View with MIUIX overScrollVertical
                         LazyColumn(
+                            userScrollEnabled = !isDraggingItems,
                             modifier = Modifier.fillMaxSize().overScrollVertical(),
                             contentPadding = PaddingValues(bottom = 12.dp)
                         ) {
@@ -409,11 +456,9 @@ fun ExplorerScreen(
                                     isSelectionMode = isSelectionMode,
                                     isDropTarget = isDropTarget,
                                     onBoundsChanged = { rect ->
+                                        itemBoundsMap[item.path] = rect
                                         if (item.isDirectory) folderBoundsMap[item.path] = rect
                                     },
-                                    onDragStart = { pos -> handleItemDragStart(item, pos) },
-                                    onDragMove = { pos -> handleItemDragMove(pos) },
-                                    onDragEnd = { handleItemDragEnd() },
                                     modifier = Modifier.animateItem(
                                         fadeInSpec = folmeSpring(damping = 0.9f, response = 0.25f),
                                         placementSpec = folmeSpring(damping = 0.84f, response = 0.30f, visibilityThreshold = IntOffset(1, 1)),

@@ -5,7 +5,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -13,11 +12,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
@@ -44,17 +41,9 @@ fun FileListItem(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
     isDropTarget: Boolean = false,
-    onBoundsChanged: ((Rect) -> Unit)? = null,
-    onDragStart: ((Offset) -> Unit)? = null,
-    onDragMove: ((Offset) -> Unit)? = null,
-    onDragEnd: (() -> Unit)? = null
+    onBoundsChanged: ((Rect) -> Unit)? = null
 ) {
     val context = LocalContext.current
-    var itemWindowOffset by remember { mutableStateOf(Offset.Zero) }
-    val currentOnLongClick by rememberUpdatedState(onLongClick)
-    val currentOnDragStart by rememberUpdatedState(onDragStart)
-    val currentOnDragMove by rememberUpdatedState(onDragMove)
-    val currentOnDragEnd by rememberUpdatedState(onDragEnd)
     val folderBadgeIcon: Int? = if (item.isDirectory) getEsFolderBadgeRes(item.name) else null
     var folderAppIcon by remember(item.path) { mutableStateOf<ImageBitmap?>(null) }
 
@@ -93,9 +82,7 @@ fun FileListItem(
         modifier = modifier
             .fillMaxWidth()
             .onGloballyPositioned { coords ->
-                val bounds = coords.boundsInWindow()
-                itemWindowOffset = bounds.topLeft
-                onBoundsChanged?.invoke(bounds)
+                onBoundsChanged?.invoke(coords.boundsInWindow())
             }
             .clip(RoundedCornerShape(8.dp))
             .background(backgroundColor)
@@ -107,31 +94,6 @@ fun FileListItem(
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
-            )
-            .then(
-                if (isSelected && onDragStart != null) {
-                    Modifier.pointerInput(item.path, isSelected) {
-                        var dragStarted = false
-                        detectDragGestures(
-                            onDragStart = { localPos ->
-                                dragStarted = true
-                                currentOnDragStart?.invoke(itemWindowOffset + localPos)
-                            },
-                            onDrag = { change, _ ->
-                                change.consume()
-                                currentOnDragMove?.invoke(itemWindowOffset + change.position)
-                            },
-                            onDragEnd = {
-                                if (dragStarted) currentOnDragEnd?.invoke()
-                                dragStarted = false
-                            },
-                            onDragCancel = {
-                                currentOnDragEnd?.invoke()
-                                dragStarted = false
-                            }
-                        )
-                    }
-                } else Modifier
             )
             .padding(horizontal = 14.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
