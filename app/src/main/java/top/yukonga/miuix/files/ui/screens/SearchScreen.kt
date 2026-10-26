@@ -6,12 +6,23 @@ import android.net.wifi.WifiManager
 import android.os.Environment
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,6 +33,8 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -35,13 +48,20 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.files.R
 import top.yukonga.miuix.files.core.model.FileItem
+import top.yukonga.miuix.files.core.storage.FileOperations
 import top.yukonga.miuix.files.core.storage.StorageManager
 import top.yukonga.miuix.files.ui.components.*
+import top.yukonga.miuix.kmp.anim.folmeSpring
 import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.utils.SinkFeedback
+import top.yukonga.miuix.kmp.utils.pressable
 import java.io.File
 import java.net.Inet4Address
 import java.net.NetworkInterface
@@ -227,100 +247,395 @@ fun TextEditorScreen(initialFile: File?, onBack: () -> Unit) {
     }
 }
 
-/** ES Image Viewer: visualizador de imagens embutido com zoom (pinch-to-zoom e duplo toque) e compartilhamento. */
+/**
+ * ES Image Browser 1:1 — feito do zero:
+ * - Deslize lateral (HorizontalPager) entre todas as imagens da pasta
+ * - Pinça para zoom (1x..5x), arrastar (pan) e toque duplo para zoom 2.5x / 1x
+ * - Toque simples alterna modo tela cheia (oculta/mostra barras superior e inferior)
+ * - Barra inferior 1:1 com ícones ES: Girar, Definir como, Compartilhar, Excluir, Propriedades
+ */
 @Composable
 fun ImageViewerScreen(file: File, onBack: () -> Unit) {
     val context = LocalContext.current
-    var bmp by remember(file.path) { mutableStateOf<ImageBitmap?>(null) }
-    var scale by remember(file.path) { mutableFloatStateOf(1f) }
-    var offsetX by remember(file.path) { mutableFloatStateOf(0f) }
-    var offsetY by remember(file.path) { mutableFloatStateOf(0f) }
-    BackHandler(onBack = onBack)
+    val scope = rememberCoroutineScope()
+    val imgExtensions = remember { setOf("jpg", "jpeg", "png", "webp", "bmp", "gif", "heic") }
 
-    LaunchedEffect(file.path) {
-        bmp = withContext(Dispatchers.IO) {
-            runCatching {
-                val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                android.graphics.BitmapFactory.decodeFile(file.path, o)
-                var s = 1
-                while (o.outWidth / s > 1920 || o.outHeight / s > 1920) s *= 2
-                android.graphics.BitmapFactory.decodeFile(file.path, android.graphics.BitmapFactory.Options().apply { inSampleSize = s })
-                    ?.asImageBitmap()
-            }.getOrNull()
-        }
+    var siblingImages by remember(file.path) {
+        mutableStateOf(
+            file.parentFile?.listFiles()
+                ?.filter { it.isFile && it.extension.lowercase() in imgExtensions }
+                ?.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
+                ?.takeIf { it.isNotEmpty() }
+                ?: listOf(file)
+        )
     }
 
-    EsSubScreen(file.name, onBack) {
-        Box(
-            Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .background(Color.Black)
-                .clickable(
-                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                    indication = null
-                ) {
-                    if (scale > 1.05f) {
-                        scale = 1f
-                        offsetX = 0f
-                        offsetY = 0f
+    val initialIdx = remember(siblingImages, file.path) {
+        siblingImages.indexOfFirst { it.absolutePath == file.absolutePath }.coerceAtLeast(0)
+    }
+
+    val pagerState = rememberPagerState(
+        initialPage = initialIdx,
+        pageCount = { siblingImages.size }
+    )
+
+    val currentFile = siblingImages.getOrNull(pagerState.currentPage) ?: file
+    var showBars by remember { mutableStateOf(true) }
+    var rotationMap by remember { mutableStateOf<Map<String, Float>>(emptyMap()) }
+    var resolutionMap by remember { mutableStateOf<Map<String, Pair<Int, Int>>>(emptyMap()) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showPropsDialog by remember { mutableStateOf(false) }
+
+    val currentRotation = rotationMap[currentFile.absolutePath] ?: 0f
+    val animatedRotation by animateFloatAsState(
+        targetValue = currentRotation,
+        animationSpec = folmeSpring(damping = 0.85f, response = 0.28f),
+        label = "img_rotation"
+    )
+
+    BackHandler(onBack = onBack)
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+    ) {
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize(),
+            beyondViewportPageCount = 1
+        ) { page ->
+            val pageFile = siblingImages.getOrNull(page) ?: return@HorizontalPager
+            val isCurrentPage = page == pagerState.currentPage
+            var bmp by remember(pageFile.absolutePath) { mutableStateOf<ImageBitmap?>(null) }
+            var scale by remember(pageFile.absolutePath, isCurrentPage) { mutableFloatStateOf(1f) }
+            var offsetX by remember(pageFile.absolutePath, isCurrentPage) { mutableFloatStateOf(0f) }
+            var offsetY by remember(pageFile.absolutePath, isCurrentPage) { mutableFloatStateOf(0f) }
+
+            val pageRotation = if (isCurrentPage) animatedRotation else (rotationMap[pageFile.absolutePath] ?: 0f)
+
+            LaunchedEffect(pageFile.absolutePath) {
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        android.graphics.BitmapFactory.decodeFile(pageFile.absolutePath, bounds)
+                        if (bounds.outWidth > 0 && bounds.outHeight > 0) {
+                            resolutionMap = resolutionMap + (pageFile.absolutePath to (bounds.outWidth to bounds.outHeight))
+                        }
+                        var sample = 1
+                        while (bounds.outWidth / sample > 2048 || bounds.outHeight / sample > 2048) {
+                            sample *= 2
+                        }
+                        val decoded = android.graphics.BitmapFactory.decodeFile(
+                            pageFile.absolutePath,
+                            android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
+                        )?.asImageBitmap()
+                        bmp = decoded
                     }
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            val b = bmp
-            if (b != null) {
-                Image(
-                    bitmap = b,
-                    contentDescription = file.name,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .then(
-                            androidx.compose.ui.Modifier.graphicsLayer(
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(pageFile.absolutePath) {
+                        detectTapGestures(
+                            onTap = { showBars = !showBars },
+                            onDoubleTap = {
+                                if (scale > 1.05f) {
+                                    scale = 1f
+                                    offsetX = 0f
+                                    offsetY = 0f
+                                } else {
+                                    scale = 2.5f
+                                }
+                            }
+                        )
+                    }
+                    .then(
+                        if (scale > 1.01f) {
+                            Modifier.pointerInput(pageFile.absolutePath, scale) {
+                                detectTransformGestures { _, pan, zoom, _ ->
+                                    val newScale = (scale * zoom).coerceIn(1f, 5f)
+                                    scale = newScale
+                                    if (newScale > 1.01f) {
+                                        val maxX = (size.width * (newScale - 1f)) / 2f
+                                        val maxY = (size.height * (newScale - 1f)) / 2f
+                                        offsetX = (offsetX + pan.x).coerceIn(-maxX, maxX)
+                                        offsetY = (offsetY + pan.y).coerceIn(-maxY, maxY)
+                                    } else {
+                                        offsetX = 0f
+                                        offsetY = 0f
+                                    }
+                                }
+                            }
+                        } else {
+                            Modifier.pointerInput(pageFile.absolutePath) {
+                                detectTransformGestures { _, _, zoom, _ ->
+                                    if (zoom != 1f) {
+                                        val newScale = (scale * zoom).coerceIn(1f, 5f)
+                                        scale = newScale
+                                        if (newScale <= 1.01f) {
+                                            offsetX = 0f
+                                            offsetY = 0f
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                val bitmap = bmp
+                if (bitmap != null) {
+                    Image(
+                        bitmap = bitmap,
+                        contentDescription = pageFile.name,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer(
                                 scaleX = scale,
                                 scaleY = scale,
                                 translationX = offsetX,
-                                translationY = offsetY
+                                translationY = offsetY,
+                                rotationZ = pageRotation
                             )
-                        )
-                )
-            } else {
-                Text("Carregando imagem...", color = EsTextSecondary, fontSize = 13.sp)
+                    )
+                } else {
+                    Text(
+                        text = "Carregando imagem...",
+                        color = Color(0xFF9EA2A8),
+                        fontSize = 13.sp
+                    )
+                }
             }
         }
-        Row(
-            Modifier.fillMaxWidth().background(EsTopColor).padding(horizontal = 16.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+
+        // Top Bar Overlay (ES Image Browser Header)
+        AnimatedVisibility(
+            visible = showBars,
+            enter = slideInVertically(animationSpec = folmeSpring(damping = 0.88f, response = 0.28f)) { -it } + fadeIn(),
+            exit = slideOutVertically(animationSpec = folmeSpring(damping = 0.9f, response = 0.22f)) { -it } + fadeOut(),
+            modifier = Modifier.align(Alignment.TopCenter)
         ) {
-            Text("${StorageManager.formatFileSize(file.length())} • ${StorageManager.formatDate(file.lastModified())}", fontSize = 12.sp, color = EsTextSecondary)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = {
-                    if (scale < 2.5f) {
-                        scale = 2.5f
-                    } else {
-                        scale = 1f
-                        offsetX = 0f
-                        offsetY = 0f
-                    }
-                }) {
-                    Text(if (scale > 1.1f) "1x" else "Zoom 2.5x")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xD9202326))
+                    .statusBarsPadding()
+                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onBack),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.toolbar_return),
+                        contentDescription = "Voltar",
+                        modifier = Modifier.size(24.dp),
+                        colorFilter = ColorFilter.tint(Color.White)
+                    )
                 }
-                Button(onClick = {
-                    runCatching {
-                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-                        val intent = Intent(Intent.ACTION_SEND).apply {
-                            type = "image/*"
-                            putExtra(Intent.EXTRA_STREAM, uri)
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        }
-                        context.startActivity(Intent.createChooser(intent, "Compartilhar ${file.name}"))
-                    }
-                }) {
-                    Text("Compartilhar")
+                Spacer(Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = currentFile.name,
+                        fontSize = 15.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    val res = resolutionMap[currentFile.absolutePath]
+                    val resText = if (res != null) "${res.first}×${res.second} • " else ""
+                    Text(
+                        text = "$resText${StorageManager.formatFileSize(currentFile.length())} • ${pagerState.currentPage + 1}/${siblingImages.size}",
+                        fontSize = 11.5.sp,
+                        color = Color(0xFFB8BCC2),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }
+
+        // Bottom Action Toolbar Overlay (1:1 ES Image Browser: Girar, Definir como, Compartilhar, Excluir, Propriedades)
+        AnimatedVisibility(
+            visible = showBars,
+            enter = slideInVertically(animationSpec = folmeSpring(damping = 0.88f, response = 0.28f)) { it } + fadeIn(),
+            exit = slideOutVertically(animationSpec = folmeSpring(damping = 0.9f, response = 0.22f)) { it } + fadeOut(),
+            modifier = Modifier.align(Alignment.BottomCenter)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xD9202326))
+                    .navigationBarsPadding()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(Color(0x26FFFFFF))
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .padding(horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ImageViewerBottomAction(
+                        title = "Girar",
+                        iconRes = R.drawable.toolbar_refresh,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        val nextRot = (currentRotation + 90f) % 360f
+                        rotationMap = rotationMap + (currentFile.absolutePath to nextRot)
+                    }
+                    ImageViewerBottomAction(
+                        title = "Definir como",
+                        iconRes = R.drawable.toolbar_image,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        runCatching {
+                            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", currentFile)
+                            val intent = Intent(Intent.ACTION_ATTACH_DATA).apply {
+                                setDataAndType(uri, "image/*")
+                                putExtra("mimeType", "image/*")
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            context.startActivity(Intent.createChooser(intent, "Definir como"))
+                        }
+                    }
+                    ImageViewerBottomAction(
+                        title = "Compartilhar",
+                        iconRes = R.drawable.toolbar_share,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        runCatching {
+                            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", currentFile)
+                            val intent = Intent(Intent.ACTION_SEND).apply {
+                                type = "image/*"
+                                putExtra(Intent.EXTRA_STREAM, uri)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            context.startActivity(Intent.createChooser(intent, "Compartilhar ${currentFile.name}"))
+                        }
+                    }
+                    ImageViewerBottomAction(
+                        title = "Excluir",
+                        iconRes = R.drawable.toolbar_delete,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        showDeleteConfirm = true
+                    }
+                    ImageViewerBottomAction(
+                        title = "Propriedades",
+                        iconRes = R.drawable.toolbar_more,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        showPropsDialog = true
+                    }
+                }
+            }
+        }
+    }
+
+    if (showDeleteConfirm) {
+        var moveToRecycle by remember { mutableStateOf(true) }
+        EsDeleteConfirmDialog(
+            selectedCount = 1,
+            moveToRecycleBin = moveToRecycle,
+            onToggleRecycleBin = { moveToRecycle = it },
+            onConfirm = {
+                val target = currentFile
+                val recycle = moveToRecycle
+                showDeleteConfirm = false
+                scope.launch {
+                    if (recycle) {
+                        FileOperations.moveToRecycle(listOf(target))
+                    } else {
+                        FileOperations.deleteFiles(listOf(target))
+                    }
+                    val updated = siblingImages.filter { it.absolutePath != target.absolutePath }
+                    if (updated.isEmpty()) {
+                        onBack()
+                    } else {
+                        siblingImages = updated
+                    }
+                }
+            },
+            onDismiss = { showDeleteConfirm = false }
+        )
+    }
+
+    if (showPropsDialog) {
+        val res = resolutionMap[currentFile.absolutePath]
+        OverlayDialog(
+            show = showPropsDialog,
+            onDismissRequest = { showPropsDialog = false },
+            title = "Propriedades da Imagem",
+            content = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Nome: ${currentFile.name}", fontSize = 13.5.sp, color = EsTextPrimary, fontWeight = FontWeight.Bold)
+                    Text("Caminho: ${currentFile.absolutePath}", fontSize = 12.sp, color = EsTextSecondary)
+                    if (res != null) {
+                        Text("Resolução: ${res.first} × ${res.second} px", fontSize = 12.sp, color = EsTextSecondary)
+                    }
+                    Text("Tamanho: ${StorageManager.formatFileSize(currentFile.length())} (${currentFile.length()} B)", fontSize = 12.sp, color = EsTextSecondary)
+                    Text("Modificado: ${StorageManager.formatDate(currentFile.lastModified())}", fontSize = 12.sp, color = EsTextSecondary)
+                    Spacer(Modifier.height(10.dp))
+                    TextButton(
+                        text = "Fechar",
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                        onClick = { showPropsDialog = false },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun ImageViewerBottomAction(
+    title: String,
+    iconRes: Int,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = modifier
+            .fillMaxHeight()
+            .pressable(interactionSource = interactionSource, indication = SinkFeedback())
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .padding(vertical = 4.dp)
+    ) {
+        Image(
+            painter = painterResource(iconRes),
+            contentDescription = title,
+            modifier = Modifier.size(22.dp),
+            colorFilter = ColorFilter.tint(Color.White.copy(alpha = 0.92f))
+        )
+        Spacer(modifier = Modifier.height(3.dp))
+        Text(
+            text = title,
+            fontSize = 10.5.sp,
+            color = Color(0xFFD0D4DA),
+            fontWeight = FontWeight.Normal,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
