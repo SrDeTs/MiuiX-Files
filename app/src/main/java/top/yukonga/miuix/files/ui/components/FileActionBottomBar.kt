@@ -70,7 +70,7 @@ fun FileActionBottomBar(
             ActionItem(iconRes = R.drawable.toolbar_delete, label = "Excluir", onClick = onDelete, modifier = Modifier.weight(1f))
             if (restoreMode) {
                 ActionItem(iconRes = R.drawable.toolbar_refresh, label = "Restaurar", onClick = onRename, modifier = Modifier.weight(1f))
-            } else if (selectedCount == 1) {
+            } else {
                 ActionItem(iconRes = R.drawable.toolbar_rename, label = "Renomear", onClick = onRename, modifier = Modifier.weight(1f))
             }
             ActionItem(iconRes = R.drawable.toolbar_more, label = "Mais", onClick = onMore, modifier = Modifier.weight(1f))

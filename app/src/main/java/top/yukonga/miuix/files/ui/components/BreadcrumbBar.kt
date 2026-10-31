@@ -70,15 +70,15 @@ fun EsAnalyzerPercentageTag(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Image(
-            painter = painterResource(R.drawable.toolbar_diskanalyzer_nomal),
+            painter = painterResource(R.drawable.icon_home_tab_analyse),
             contentDescription = "Analisador de Espaço",
-            modifier = Modifier.size(13.dp),
+            modifier = Modifier.size(14.dp),
             colorFilter = ColorFilter.tint(EsTextSecondary)
         )
-        Spacer(modifier = Modifier.width(4.dp))
+        Spacer(modifier = Modifier.width(5.dp))
         Text(
             text = "$percentage%",
-            fontSize = 11.sp,
+            fontSize = 11.5.sp,
             fontWeight = FontWeight.Bold,
             color = EsTextPrimary
         )

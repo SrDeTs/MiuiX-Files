@@ -591,7 +591,7 @@ fun ExplorerScreen(
                 )
             }
 
-            // 1:1 Bottom Bar (hidden during active Drag & Drop so the bottom corner triangles are unobstructed, exactly like original ES!)
+            // 1:1 Bottom Bar (hidden during active Drag & Drop so the bottom corner triangles are unobstructed, while keeping exact layout height!)
             if (!isDraggingItems) {
                 val bottomMode = when {
                     isSelectionMode -> 1
@@ -691,6 +691,13 @@ fun ExplorerScreen(
                         }
                     }
                 }
+            } else {
+                Spacer(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(55.dp)
+                        .navigationBarsPadding()
+                )
             }
             if (tappedApkFile != null) {
                 EsApkPropertiesDialog(
@@ -708,10 +715,12 @@ fun ExplorerScreen(
         // - 4 Triangular Corner Drop Zones (Top-Left: Share, Top-Right: Copy, Bottom-Left: Send, Bottom-Right: Delete)
         // - Real Floating File/Folder Icon + Item Name following finger everywhere on screen without clipping
         if (isDraggingItems && dragStartedMoving) {
-            val cornerSize = 115.dp
-            val normalCornerColor = Color(0xD9383C40)
-            val activeCornerColor = Color(0xE62F7DF6)
-            val activeDeleteColor = Color(0xE6E53935)
+            val cornerSize = 110.dp
+            val normalCornerColor = Color(0xE8373B40)
+            val activeCornerColor = Color(0xF02F7DF6)
+            val activeDeleteColor = Color(0xF0E53935)
+            val cornerEdgeColor = Color(0xFF1F2225)
+            val cornerIconInactive = Color(0xFF9EA2A6)
 
             // Top-Left Triangle (Share)
             Box(
@@ -728,14 +737,20 @@ fun ExplorerScreen(
                         close()
                     }
                     drawPath(path, if (hoveredCornerZone == 1) activeCornerColor else normalCornerColor)
+                    drawLine(
+                        color = cornerEdgeColor,
+                        start = Offset(size.width, 0f),
+                        end = Offset(0f, size.height),
+                        strokeWidth = 2.dp.toPx()
+                    )
                 }
                 Image(
                     painter = painterResource(R.drawable.toolbar_share),
                     contentDescription = "Compartilhar",
                     modifier = Modifier
-                        .padding(start = 18.dp, top = 18.dp)
-                        .size(26.dp),
-                    colorFilter = ColorFilter.tint(Color.White.copy(alpha = if (hoveredCornerZone == 1) 1f else 0.78f))
+                        .padding(start = 18.dp, top = 16.dp)
+                        .size(25.dp),
+                    colorFilter = ColorFilter.tint(if (hoveredCornerZone == 1) Color.White else cornerIconInactive)
                 )
             }
 
@@ -754,15 +769,21 @@ fun ExplorerScreen(
                         close()
                     }
                     drawPath(path, if (hoveredCornerZone == 2) activeCornerColor else normalCornerColor)
+                    drawLine(
+                        color = cornerEdgeColor,
+                        start = Offset(0f, 0f),
+                        end = Offset(size.width, size.height),
+                        strokeWidth = 2.dp.toPx()
+                    )
                 }
                 Image(
                     painter = painterResource(R.drawable.toolbar_copy),
                     contentDescription = "Copiar",
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(end = 18.dp, top = 18.dp)
-                        .size(26.dp),
-                    colorFilter = ColorFilter.tint(Color.White.copy(alpha = if (hoveredCornerZone == 2) 1f else 0.78f))
+                        .padding(end = 18.dp, top = 16.dp)
+                        .size(25.dp),
+                    colorFilter = ColorFilter.tint(if (hoveredCornerZone == 2) Color.White else cornerIconInactive)
                 )
             }
 
@@ -781,15 +802,21 @@ fun ExplorerScreen(
                         close()
                     }
                     drawPath(path, if (hoveredCornerZone == 3) activeCornerColor else normalCornerColor)
+                    drawLine(
+                        color = cornerEdgeColor,
+                        start = Offset(0f, 0f),
+                        end = Offset(size.width, size.height),
+                        strokeWidth = 2.dp.toPx()
+                    )
                 }
                 Image(
-                    painter = painterResource(R.drawable.es_tool_sender),
+                    painter = painterResource(R.drawable.icon_home_tab_sender),
                     contentDescription = "Enviar",
                     modifier = Modifier
                         .align(Alignment.BottomStart)
-                        .padding(start = 18.dp, bottom = 18.dp)
-                        .size(26.dp),
-                    colorFilter = ColorFilter.tint(Color.White.copy(alpha = if (hoveredCornerZone == 3) 1f else 0.78f))
+                        .padding(start = 18.dp, bottom = 16.dp)
+                        .size(25.dp),
+                    colorFilter = ColorFilter.tint(if (hoveredCornerZone == 3) Color.White else cornerIconInactive)
                 )
             }
 
@@ -808,15 +835,21 @@ fun ExplorerScreen(
                         close()
                     }
                     drawPath(path, if (hoveredCornerZone == 4) activeDeleteColor else normalCornerColor)
+                    drawLine(
+                        color = cornerEdgeColor,
+                        start = Offset(size.width, 0f),
+                        end = Offset(0f, size.height),
+                        strokeWidth = 2.dp.toPx()
+                    )
                 }
                 Image(
                     painter = painterResource(R.drawable.toolbar_delete),
                     contentDescription = "Excluir",
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(end = 18.dp, bottom = 18.dp)
-                        .size(26.dp),
-                    colorFilter = ColorFilter.tint(Color.White.copy(alpha = if (hoveredCornerZone == 4) 1f else 0.78f))
+                        .padding(end = 18.dp, bottom = 16.dp)
+                        .size(25.dp),
+                    colorFilter = ColorFilter.tint(if (hoveredCornerZone == 4) Color.White else cornerIconInactive)
                 )
             }
 
@@ -840,6 +873,14 @@ fun ExplorerScreen(
                     else -> R.drawable.format_unkown
                 }
                 val folderBadge = if (primaryItem.isDirectory) getEsFolderBadgeRes(primaryItem.name) else null
+                var folderAppIcon by remember(primaryItem.path) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+                LaunchedEffect(primaryItem.path) {
+                    if (primaryItem.isDirectory && folderBadge == null) {
+                        folderAppIcon = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            top.yukonga.miuix.files.ui.components.loadFolderAppBitmap(context, primaryItem.file)
+                        }
+                    }
+                }
                 val halfWidthPx = with(density) { 48.dp.roundToPx() }
                 val offsetYAdjPx = with(density) { 54.dp.roundToPx() }
                 Column(
@@ -885,6 +926,16 @@ fun ExplorerScreen(
                                 modifier = Modifier
                                     .size(30.dp)
                                     .offset(y = 3.dp),
+                                alpha = 0.92f
+                            )
+                        } else if (primaryItem.isDirectory && folderAppIcon != null) {
+                            Image(
+                                bitmap = folderAppIcon!!,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .offset(y = 3.dp)
+                                    .clip(CircleShape),
                                 alpha = 0.92f
                             )
                         }

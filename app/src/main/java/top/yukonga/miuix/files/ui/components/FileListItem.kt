@@ -172,13 +172,26 @@ fun FileListItem(
             )
         }
 
-        // Selection checkbox
+        // 1:1 ES circular selection badge (bottom-right of icon or right of row)
         if (isSelectionMode) {
             Spacer(modifier = Modifier.width(8.dp))
-            Checkbox(
-                state = if (isSelected) androidx.compose.ui.state.ToggleableState.On else androidx.compose.ui.state.ToggleableState.Off,
-                onClick = onClick
-            )
+            Box(
+                modifier = Modifier
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(if (isSelected) Color(0xFF2F7DF6) else Color.White)
+                    .border(1.dp, if (isSelected) Color(0xFF2F7DF6) else Color(0xFF9EA2A6), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isSelected) {
+                    Text(
+                        text = "✓",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            }
         }
     }
 }
