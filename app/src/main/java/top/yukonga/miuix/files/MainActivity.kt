@@ -207,18 +207,16 @@ class MainActivity : ComponentActivity() {
 
                         AnimatedContent(
                             targetState = Pair(activeWindow.id, currentScreen),
-                            transitionSpec = {
-                                if (isForward) {
-                                    (slideInHorizontally(animationSpec = folmeSpring(damping = 0.88f, response = 0.34f)) { it } +
-                                        fadeIn(animationSpec = folmeSpring(damping = 0.9f, response = 0.25f))) togetherWith
-                                        (slideOutHorizontally(animationSpec = folmeSpring(damping = 0.9f, response = 0.34f)) { -(it / 4) } +
-                                            fadeOut(animationSpec = folmeSpring(damping = 0.9f, response = 0.30f), targetAlpha = 0.85f))
-                                } else {
-                                    (slideInHorizontally(animationSpec = folmeSpring(damping = 0.88f, response = 0.32f)) { -(it / 4) } +
-                                        fadeIn(animationSpec = folmeSpring(damping = 0.9f, response = 0.25f), initialAlpha = 0.85f)) togetherWith
-                                        (slideOutHorizontally(animationSpec = folmeSpring(damping = 0.9f, response = 0.30f)) { it } +
-                                            fadeOut(animationSpec = folmeSpring(damping = 0.9f, response = 0.22f)))
+                            contentKey = { (winId, scr) ->
+                                when (scr) {
+                                    is Screen.Explorer -> "$winId:explorer"
+                                    is Screen.Category -> "$winId:category:${scr.category.name}"
+                                    else -> "$winId:${scr::class.simpleName}"
                                 }
+                            },
+                            transitionSpec = {
+                                fadeIn(animationSpec = folmeSpring(damping = 0.95f, response = 0.18f)) togetherWith
+                                    fadeOut(animationSpec = folmeSpring(damping = 0.95f, response = 0.14f))
                             },
                             label = "miuix_nav_screen_transition"
                         ) { (_, screen) ->

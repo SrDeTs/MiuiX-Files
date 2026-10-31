@@ -379,26 +379,26 @@ fun ExplorerScreen(
                     transitionSpec = {
                         val dirChanged = initialState.first != targetState.first
                         if (dirChanged) {
-                            val sign = if (navForward) 1 else -1
-                            (slideInHorizontally(animationSpec = folmeSpring(damping = 0.88f, response = 0.30f)) { (it * 0.22f * sign).toInt() } +
-                                fadeIn(animationSpec = folmeSpring(damping = 0.9f, response = 0.25f))) togetherWith
-                                (slideOutHorizontally(animationSpec = folmeSpring(damping = 0.9f, response = 0.24f)) { (-it * 0.14f * sign).toInt() } +
-                                    fadeOut(animationSpec = folmeSpring(damping = 0.9f, response = 0.2f)))
+                            // Subtle, instant-feeling fade + micro-scale inside the content area (no full-screen slide over)
+                            val enterScale = if (navForward) 0.985f else 1.015f
+                            (fadeIn(animationSpec = folmeSpring(damping = 0.96f, response = 0.16f)) +
+                                scaleIn(initialScale = enterScale, animationSpec = folmeSpring(damping = 0.94f, response = 0.18f))) togetherWith
+                                fadeOut(animationSpec = folmeSpring(damping = 0.96f, response = 0.12f))
                         } else {
                             // Grid <-> List view switch: authentic MIUIX Folme spring zoom + fade transition
                             val toGrid = targetState.second
-                            val inScale = if (toGrid) 0.90f else 1.08f
-                            val outScale = if (toGrid) 1.06f else 0.92f
+                            val inScale = if (toGrid) 0.94f else 1.04f
+                            val outScale = if (toGrid) 1.04f else 0.94f
                             (scaleIn(
                                 initialScale = inScale,
-                                animationSpec = folmeSpring(damping = 0.82f, response = 0.32f)
+                                animationSpec = folmeSpring(damping = 0.88f, response = 0.22f)
                             ) + fadeIn(
-                                animationSpec = folmeSpring(damping = 0.9f, response = 0.24f)
+                                animationSpec = folmeSpring(damping = 0.92f, response = 0.18f)
                             )) togetherWith (scaleOut(
                                 targetScale = outScale,
-                                animationSpec = folmeSpring(damping = 0.9f, response = 0.22f)
+                                animationSpec = folmeSpring(damping = 0.92f, response = 0.16f)
                             ) + fadeOut(
-                                animationSpec = folmeSpring(damping = 0.9f, response = 0.18f)
+                                animationSpec = folmeSpring(damping = 0.92f, response = 0.14f)
                             ))
                         }
                     },
