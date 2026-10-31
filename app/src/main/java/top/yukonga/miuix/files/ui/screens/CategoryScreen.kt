@@ -397,7 +397,11 @@ fun CategoryScreen(
                                     top.yukonga.miuix.files.core.storage.FileOperations.emptyRecycle()
                                     files = StorageManager.getCategoryFiles(category, context = context, forceRefresh = true)
                                 }
-                            } else showMoreMenu = true
+                            } else {
+                                if (files.isNotEmpty()) {
+                                    selectedPaths = setOf(files.first().path)
+                                }
+                            }
                         }
                         CategoryBottomItem("Procurar", R.drawable.toolbar_search, modifier = Modifier.weight(1f)) {
                             showSearchBar = !showSearchBar

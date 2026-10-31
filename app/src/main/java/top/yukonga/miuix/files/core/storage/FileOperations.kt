@@ -267,26 +267,71 @@ object FileOperations {
         }
     }
 
+    /** Renomeação em lote 1:1 estilo ES File Explorer (baseName + numeração sequencial preservando extensão). */
+    suspend fun batchRename(files: List<File>, basePattern: String, startNumber: Int = 1): Result<Int> = withContext(Dispatchers.IO) {
+        var count = 0
+        files.forEachIndexed { idx, file ->
+            val num = startNumber + idx
+            val ext = file.extension.let { if (it.isNotEmpty() && !file.isDirectory) ".$it" else "" }
+            val newName = if (basePattern.contains("#")) {
+                basePattern.replace("#", num.toString()) + ext
+            } else {
+                "${basePattern}_$num$ext"
+            }
+            val dest = File(file.parentFile, newName)
+            if (!dest.exists() && file.renameTo(dest)) {
+                count++
+            }
+        }
+        StorageManager.invalidateCaches()
+        Result.success(count)
+    }
+
     suspend fun zipFiles(sourceFiles: List<File>, targetZip: File): Result<File> = withContext(Dispatchers.IO) {
         try {
+            val totalBytes = sourceFiles.sumOf { estimateSize(it) }.coerceAtLeast(1L)
+            var compressedBytes = 0L
+            transferState = TransferState(
+                active = true,
+                title = "Compactando (${targetZip.name})",
+                currentFile = sourceFiles.firstOrNull()?.name ?: "",
+                completedCount = 0,
+                totalCount = sourceFiles.size,
+                progress = 0.02f
+            )
             ZipOutputStream(BufferedOutputStream(FileOutputStream(targetZip))).use { out ->
-                for (file in sourceFiles) {
-                    addFileToZip(out, file, file.name)
+                for ((idx, file) in sourceFiles.withIndex()) {
+                    transferState = transferState.copy(
+                        currentFile = file.name,
+                        completedCount = idx,
+                        progress = (compressedBytes.toFloat() / totalBytes.toFloat()).coerceIn(0.05f, 0.98f)
+                    )
+                    addFileToZipWithProgress(out, file, file.name) { delta ->
+                        compressedBytes += delta
+                        transferState = transferState.copy(
+                            progress = (compressedBytes.toFloat() / totalBytes.toFloat()).coerceIn(0.05f, 0.99f)
+                        )
+                    }
                 }
             }
+            transferState = transferState.copy(completedCount = sourceFiles.size, progress = 1f)
+            StorageManager.invalidateCaches()
+            kotlinx.coroutines.delay(260)
+            transferState = TransferState(active = false)
             Result.success(targetZip)
         } catch (e: Exception) {
+            transferState = TransferState(active = false)
             Result.failure(e)
         }
     }
 
-    private fun addFileToZip(out: ZipOutputStream, file: File, baseName: String) {
+    private fun addFileToZipWithProgress(out: ZipOutputStream, file: File, baseName: String, onBytes: (Long) -> Unit) {
         if (file.isDirectory) {
             val entryName = if (baseName.endsWith("/")) baseName else "$baseName/"
             out.putNextEntry(ZipEntry(entryName))
             out.closeEntry()
             file.listFiles()?.forEach { child ->
-                addFileToZip(out, child, "$entryName${child.name}")
+                addFileToZipWithProgress(out, child, "$entryName${child.name}", onBytes)
             }
         } else {
             val buffer = ByteArray(1024 * 32)
@@ -295,6 +340,7 @@ object FileOperations {
                 var len: Int
                 while (input.read(buffer).also { len = it } > 0) {
                     out.write(buffer, 0, len)
+                    onBytes(len.toLong())
                 }
                 out.closeEntry()
             }
@@ -304,10 +350,23 @@ object FileOperations {
     suspend fun unzip(zipFile: File, targetDir: File): Result<Int> = withContext(Dispatchers.IO) {
         try {
             var count = 0
+            transferState = TransferState(
+                active = true,
+                title = "Extraindo (${zipFile.name})",
+                currentFile = zipFile.name,
+                completedCount = 0,
+                totalCount = 1,
+                progress = 0.1f
+            )
             ZipInputStream(BufferedInputStream(FileInputStream(zipFile))).use { zis ->
                 var entry: ZipEntry? = zis.nextEntry
                 while (entry != null) {
                     val file = File(targetDir, entry.name)
+                    transferState = transferState.copy(
+                        currentFile = entry.name.substringAfterLast('/'),
+                        completedCount = count,
+                        progress = 0.5f
+                    )
                     if (entry.isDirectory) {
                         file.mkdirs()
                     } else {
@@ -325,8 +384,12 @@ object FileOperations {
                     entry = zis.nextEntry
                 }
             }
+            StorageManager.invalidateCaches()
+            kotlinx.coroutines.delay(240)
+            transferState = TransferState(active = false)
             Result.success(count)
         } catch (e: Exception) {
+            transferState = TransferState(active = false)
             Result.failure(e)
         }
     }

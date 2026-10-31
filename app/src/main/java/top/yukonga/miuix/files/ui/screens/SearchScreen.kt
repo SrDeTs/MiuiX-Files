@@ -212,6 +212,8 @@ fun TextEditorScreen(initialFile: File?, onBack: () -> Unit) {
         loaded = true
     }
 
+    val lineCount = remember(text) { if (text.isEmpty()) 1 else text.count { it == '\n' } + 1 }
+
     EsSubScreen("ES Note Editor", onBack) {
         Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -230,6 +232,7 @@ fun TextEditorScreen(initialFile: File?, onBack: () -> Unit) {
                         }
                         if (ok) {
                             targetFile = dest
+                            StorageManager.invalidateCaches()
                             Toast.makeText(context, "Salvo em ${dest.absolutePath}", Toast.LENGTH_SHORT).show()
                         } else {
                             Toast.makeText(context, "Erro ao salvar arquivo", Toast.LENGTH_SHORT).show()
@@ -237,6 +240,46 @@ fun TextEditorScreen(initialFile: File?, onBack: () -> Unit) {
                     }
                 }) {
                     Text("Salvar")
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "$lineCount linhas • ${text.length} caracteres",
+                    fontSize = 11.5.sp,
+                    color = EsTextSecondary
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "Copiar Tudo",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.primary,
+                        modifier = Modifier.clickable {
+                            val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                            cm?.setPrimaryClip(android.content.ClipData.newPlainText("note", text))
+                            Toast.makeText(context, "Texto copiado", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                    Text(
+                        text = "Compartilhar",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.primary,
+                        modifier = Modifier.clickable {
+                            runCatching {
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_SUBJECT, fileName)
+                                    putExtra(Intent.EXTRA_TEXT, text)
+                                }
+                                context.startActivity(Intent.createChooser(intent, "Compartilhar $fileName"))
+                            }
+                        }
+                    )
                 }
             }
             if (loaded) {

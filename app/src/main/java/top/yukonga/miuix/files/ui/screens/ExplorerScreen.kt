@@ -99,6 +99,10 @@ fun ExplorerScreen(
     var newFolderName by remember { mutableStateOf("") }
     var showRenameDialog by remember { mutableStateOf(false) }
     var renameFileName by remember { mutableStateOf("") }
+    var showBatchRenameDialog by remember { mutableStateOf(false) }
+    var batchRenamePattern by remember { mutableStateOf("") }
+    var showZipDialog by remember { mutableStateOf(false) }
+    var zipArchiveName by remember { mutableStateOf("") }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showSearchBar by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
@@ -625,10 +629,16 @@ fun ExplorerScreen(
                         },
                         onDelete = { showDeleteDialog = true },
                         onRename = {
-                            val selected = files.firstOrNull { selectedPaths.contains(it.path) }
-                            if (selected != null) {
-                                renameFileName = selected.name
-                                showRenameDialog = true
+                            if (selectedPaths.size > 1) {
+                                val first = files.firstOrNull { selectedPaths.contains(it.path) }
+                                batchRenamePattern = first?.file?.nameWithoutExtension ?: "Arquivo"
+                                showBatchRenameDialog = true
+                            } else {
+                                val selected = files.firstOrNull { selectedPaths.contains(it.path) }
+                                if (selected != null) {
+                                    renameFileName = selected.name
+                                    showRenameDialog = true
+                                }
                             }
                         },
                         onMore = {
@@ -853,6 +863,54 @@ fun ExplorerScreen(
         )
     }
 
+    // 1:1 ES File Explorer Batch Rename Dialog (when 2+ items are selected)
+    if (showBatchRenameDialog) {
+        EsInputDialog(
+            title = "Renomear em Lote (${selectedPaths.size})",
+            value = batchRenamePattern,
+            onValueChange = { batchRenamePattern = it },
+            placeholder = "Nome base (ex: Foto_#)",
+            confirmText = "Renomear",
+            onConfirm = {
+                val selectedFiles = files.filter { selectedPaths.contains(it.path) }.map { it.file }
+                if (selectedFiles.isNotEmpty() && batchRenamePattern.isNotBlank()) {
+                    scope.launch {
+                        FileOperations.batchRename(selectedFiles, batchRenamePattern.trim(), startNumber = 1)
+                        showBatchRenameDialog = false
+                        selectedPaths = emptySet()
+                        refreshFiles()
+                    }
+                }
+            },
+            onDismiss = { showBatchRenameDialog = false }
+        )
+    }
+
+    // 1:1 ES File Explorer Compress (.ZIP) Name Dialog
+    if (showZipDialog) {
+        EsInputDialog(
+            title = "Compactar em .ZIP",
+            value = zipArchiveName,
+            onValueChange = { zipArchiveName = it },
+            placeholder = "Nome do arquivo .zip",
+            confirmText = "Compactar",
+            onConfirm = {
+                val selectedFiles = files.filter { selectedPaths.contains(it.path) }.map { it.file }
+                val raw = zipArchiveName.trim()
+                if (selectedFiles.isNotEmpty() && raw.isNotBlank()) {
+                    val finalZipName = if (raw.lowercase().endsWith(".zip")) raw else "$raw.zip"
+                    showZipDialog = false
+                    selectedPaths = emptySet()
+                    scope.launch {
+                        FileOperations.zipFiles(selectedFiles, File(currentDir, finalZipName))
+                        refreshFiles()
+                    }
+                }
+            },
+            onDismiss = { showZipDialog = false }
+        )
+    }
+
     // Delete Confirmation Dialog (MIUIX OverlayDialog with "Mover para a Reciclagem" checkbox vs direct permanent deletion)
     if (showDeleteDialog) {
         val defaultRecycle = remember(prefs) { prefs.getBoolean(MiuiXFilesPreferences.KEY_USE_RECYCLE_BIN, true) }
@@ -1055,22 +1113,37 @@ fun ExplorerScreen(
                         text = "Compactar em .ZIP",
                         onClick = {
                             showSelectionMoreDialog = false
-                            scope.launch {
-                                val zipName = if (selectedFiles.size == 1) "${selectedFiles.first().nameWithoutExtension}.zip" else "Arquivo.zip"
-                                FileOperations.zipFiles(selectedFiles, File(currentDir, zipName))
-                                refreshFiles()
+                            zipArchiveName = if (selectedFiles.size == 1) {
+                                "${selectedFiles.first().nameWithoutExtension}.zip"
+                            } else {
+                                "${currentDir.name.ifBlank { "Arquivo" }}.zip"
                             }
+                            showZipDialog = true
                         },
                         modifier = Modifier.fillMaxWidth()
                     )
                     if (selectedFiles.size == 1 && selectedFiles.first().extension.lowercase() == "zip") {
                         TextButton(
-                            text = "Extrair Arquivo .ZIP Aqui",
+                            text = "Extrair para /${selectedFiles.first().nameWithoutExtension}/",
                             onClick = {
                                 showSelectionMoreDialog = false
                                 val zf = selectedFiles.first()
+                                selectedPaths = emptySet()
                                 scope.launch {
                                     FileOperations.unzip(zf, File(currentDir, zf.nameWithoutExtension))
+                                    refreshFiles()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        TextButton(
+                            text = "Extrair no Diretório Atual",
+                            onClick = {
+                                showSelectionMoreDialog = false
+                                val zf = selectedFiles.first()
+                                selectedPaths = emptySet()
+                                scope.launch {
+                                    FileOperations.unzip(zf, currentDir)
                                     refreshFiles()
                                 }
                             },
@@ -1081,15 +1154,30 @@ fun ExplorerScreen(
                         text = "Compartilhar / Enviar",
                         onClick = {
                             showSelectionMoreDialog = false
-                            val f = selectedFiles.firstOrNull() ?: return@TextButton
+                            val filesOnly = selectedFiles.filter { it.isFile }
+                            if (filesOnly.isEmpty()) return@TextButton
+                            selectedPaths = emptySet()
                             runCatching {
-                                val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", f)
-                                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                    type = "*/*"
-                                    putExtra(android.content.Intent.EXTRA_STREAM, uri)
-                                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                if (filesOnly.size == 1) {
+                                    val f = filesOnly.first()
+                                    val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", f)
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                        type = "*/*"
+                                        putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(android.content.Intent.createChooser(intent, "Compartilhar ${f.name}"))
+                                } else {
+                                    val uris = ArrayList(filesOnly.map {
+                                        androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", it)
+                                    })
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_SEND_MULTIPLE).apply {
+                                        type = "*/*"
+                                        putParcelableArrayListExtra(android.content.Intent.EXTRA_STREAM, uris)
+                                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(android.content.Intent.createChooser(intent, "Compartilhar ${filesOnly.size} arquivos"))
                                 }
-                                context.startActivity(android.content.Intent.createChooser(intent, "Compartilhar ${f.name}"))
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -1160,6 +1248,7 @@ fun ExplorerScreen(
         }
         val first = selectedFiles.firstOrNull()
         var md5 by remember(first) { mutableStateOf("Calculando...") }
+        var sha1 by remember(first) { mutableStateOf("Calculando...") }
         var totalBytes by remember(selectedFiles) {
             mutableLongStateOf(selectedFiles.sumOf { if (it.isDirectory) 0L else it.length() })
         }
@@ -1197,19 +1286,28 @@ fun ExplorerScreen(
                 isCalculatingSize = false
             }
             if (first != null && first.isFile && first.length() < 150 * 1024 * 1024) {
-                md5 = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val hashes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     runCatching {
-                        val digest = java.security.MessageDigest.getInstance("MD5")
+                        val md5Digest = java.security.MessageDigest.getInstance("MD5")
+                        val sha1Digest = java.security.MessageDigest.getInstance("SHA-1")
                         first.inputStream().use { input ->
-                            val buf = ByteArray(16384)
+                            val buf = ByteArray(32768)
                             var r: Int
-                            while (input.read(buf).also { r = it } > 0) digest.update(buf, 0, r)
+                            while (input.read(buf).also { r = it } > 0) {
+                                md5Digest.update(buf, 0, r)
+                                sha1Digest.update(buf, 0, r)
+                            }
                         }
-                        digest.digest().joinToString("") { "%02x".format(it) }
-                    }.getOrDefault("-")
+                        val m = md5Digest.digest().joinToString("") { "%02x".format(it) }
+                        val s = sha1Digest.digest().joinToString("") { "%02x".format(it) }
+                        m to s
+                    }.getOrDefault("-" to "-")
                 }
+                md5 = hashes.first
+                sha1 = hashes.second
             } else {
                 md5 = "-"
+                sha1 = "-"
             }
         }
         OverlayDialog(
@@ -1234,7 +1332,26 @@ fun ExplorerScreen(
                         Text("Modificado: ${StorageManager.formatDate(first.lastModified())}", fontSize = 12.sp, color = EsTextSecondary)
                         Text("Permissões: ${if (first.canRead()) "r" else "-"}${if (first.canWrite()) "w" else "-"}${if (first.canExecute()) "x" else "-"}", fontSize = 12.sp, color = EsTextSecondary)
                         if (selectedFiles.size == 1 && first.isFile) {
-                            Text("MD5: $md5", fontSize = 11.5.sp, color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.primary)
+                            Text(
+                                text = "MD5: $md5 (toque para copiar)",
+                                fontSize = 11.5.sp,
+                                color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.primary,
+                                modifier = Modifier.clickable {
+                                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                    cm?.setPrimaryClip(android.content.ClipData.newPlainText("MD5", md5))
+                                    android.widget.Toast.makeText(context, "MD5 copiado", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                            Text(
+                                text = "SHA-1: $sha1 (toque para copiar)",
+                                fontSize = 11.5.sp,
+                                color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.primary,
+                                modifier = Modifier.clickable {
+                                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                    cm?.setPrimaryClip(android.content.ClipData.newPlainText("SHA-1", sha1))
+                                    android.widget.Toast.makeText(context, "SHA-1 copiado", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            )
                         }
                     }
                     Spacer(Modifier.height(12.dp))
