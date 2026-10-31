@@ -1,6 +1,6 @@
 # Instruções para trabalhar no MiuiX-Files
 
-Repositório oficial do **MiuiX-Files**, gerenciador de arquivos Android em Jetpack Compose com o design system HyperOS / MIUIX (`compose-miuix-ui`), inspirado na estrutura e recursos do ES File Explorer.
+Repositório oficial do **MiuiX-Files**, gerenciador de arquivos Android em Jetpack Compose com o design system MIUIX (`compose-miuix-ui`), inspirado na estrutura e recursos do ES File Explorer.
 
 ## Comunicação e Escopo
 
