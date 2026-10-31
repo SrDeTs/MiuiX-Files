@@ -16,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
@@ -57,6 +58,7 @@ fun FileGridItem(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
+    isBeingDragged: Boolean = false,
     isDropTarget: Boolean = false,
     onBoundsChanged: ((Rect) -> Unit)? = null
 ) {
@@ -93,6 +95,7 @@ fun FileGridItem(
     }
 
     val backgroundColor = when {
+        isBeingDragged -> Color.Transparent
         isDropTarget -> Color(0xFF3FE0F0).copy(alpha = 0.34f)
         isSelected -> Color(0xFF007AFF).copy(alpha = 0.28f)
         else -> Color.Transparent
@@ -103,6 +106,7 @@ fun FileGridItem(
             .onGloballyPositioned { coords ->
                 onBoundsChanged?.invoke(coords.boundsInWindow())
             }
+            .graphicsLayer { alpha = if (isBeingDragged) 0f else 1f }
             .clip(RoundedCornerShape(8.dp))
             .background(backgroundColor)
             .then(
@@ -165,6 +169,33 @@ fun FileGridItem(
                             .clip(CircleShape)
                     )
                 }
+
+                // 1:1 ES File Explorer bottom-right white/blue circular selection badge
+                if (isSelectionMode && !isBeingDragged) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .offset(x = 2.dp, y = (-2).dp)
+                            .size(18.dp)
+                            .clip(CircleShape)
+                            .background(if (isSelected) Color(0xFF2F7DF6) else Color.White)
+                            .border(
+                                width = 1.dp,
+                                color = if (isSelected) Color.White.copy(alpha = 0.85f) else Color(0xFFB5BAC0),
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isSelected) {
+                            Text(
+                                text = "✓",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(2.dp))
@@ -179,19 +210,6 @@ fun FileGridItem(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
-        }
-
-        if (isSelectionMode) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(2.dp)
-            ) {
-                Checkbox(
-                    state = if (isSelected) androidx.compose.ui.state.ToggleableState.On else androidx.compose.ui.state.ToggleableState.Off,
-                    onClick = onClick
-                )
-            }
         }
     }
 }

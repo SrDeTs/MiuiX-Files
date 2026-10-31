@@ -15,6 +15,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
@@ -40,6 +41,7 @@ fun FileListItem(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
+    isBeingDragged: Boolean = false,
     isDropTarget: Boolean = false,
     onBoundsChanged: ((Rect) -> Unit)? = null
 ) {
@@ -73,6 +75,7 @@ fun FileListItem(
     }
 
     val backgroundColor = when {
+        isBeingDragged -> Color.Transparent
         isDropTarget -> Color(0xFF3FE0F0).copy(alpha = 0.30f)
         isSelected -> Color(0xFF007AFF).copy(alpha = 0.22f)
         else -> Color.Transparent
@@ -84,6 +87,7 @@ fun FileListItem(
             .onGloballyPositioned { coords ->
                 onBoundsChanged?.invoke(coords.boundsInWindow())
             }
+            .graphicsLayer { alpha = if (isBeingDragged) 0f else 1f }
             .clip(RoundedCornerShape(8.dp))
             .background(backgroundColor)
             .then(

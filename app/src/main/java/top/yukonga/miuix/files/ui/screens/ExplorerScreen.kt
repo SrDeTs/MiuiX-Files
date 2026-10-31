@@ -3,6 +3,7 @@ package top.yukonga.miuix.files.ui.screens
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -25,6 +26,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
@@ -32,6 +34,8 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -117,13 +121,15 @@ fun ExplorerScreen(
     val itemBoundsMap = remember(currentDir) { mutableStateMapOf<String, Rect>() }
     val folderBoundsMap = remember(currentDir) { mutableStateMapOf<String, Rect>() }
     val breadcrumbBoundsMap = remember(currentDir) { mutableStateMapOf<String, Rect>() }
-    var containerWindowOffset by remember { mutableStateOf(Offset.Zero) }
+    var rootWindowSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+    var rootWindowOffset by remember { mutableStateOf(Offset.Zero) }
     var isDraggingItems by remember { mutableStateOf(false) }
     var dragStartedMoving by remember { mutableStateOf(false) }
     var dragWindowPos by remember { mutableStateOf(Offset.Zero) }
     var draggedPrimaryItem by remember { mutableStateOf<FileItem?>(null) }
     var hoveredFolderPath by remember { mutableStateOf<String?>(null) }
     var hoveredBreadcrumbPath by remember { mutableStateOf<String?>(null) }
+    var hoveredCornerZone by remember { mutableIntStateOf(0) } // 0=none, 1=TopLeft(Share), 2=TopRight(Copy), 3=BottomLeft(Send), 4=BottomRight(Delete)
 
     val clipboardState = FileOperations.currentClipboard
     val transferState = FileOperations.transferState
@@ -181,13 +187,181 @@ fun ExplorerScreen(
         }
     }
 
+    val currentSelectedPaths by rememberUpdatedState(selectedPaths)
+    val currentDisplayFiles by rememberUpdatedState(displayFiles)
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val cornerRadiusPx = with(density) { 125.dp.toPx() }
+
+    fun handleItemDragStart(item: FileItem, windowPos: Offset) {
+        draggedPrimaryItem = item
+        isDraggingItems = true
+        dragStartedMoving = true
+        dragWindowPos = windowPos
+        hoveredFolderPath = null
+        hoveredBreadcrumbPath = null
+        hoveredCornerZone = 0
+    }
+
+    fun handleItemDragMove(windowPos: Offset) {
+        dragStartedMoving = true
+        dragWindowPos = windowPos
+        val localX = windowPos.x - rootWindowOffset.x
+        val localY = windowPos.y - rootWindowOffset.y
+        val w = rootWindowSize.width.toFloat().coerceAtLeast(1f)
+        val h = rootWindowSize.height.toFloat().coerceAtLeast(1f)
+
+        // Check 4 triangular corner action zones first (1:1 ES File Explorer)
+        val cornerHit = when {
+            localX >= 0f && localY >= 0f && (localX + localY) <= cornerRadiusPx -> 1 // Top-Left: Share
+            localX <= w && localY >= 0f && ((w - localX) + localY) <= cornerRadiusPx -> 2 // Top-Right: Copy to clipboard
+            localX >= 0f && localY <= h && (localX + (h - localY)) <= cornerRadiusPx -> 3 // Bottom-Left: Send
+            localX <= w && localY <= h && ((w - localX) + (h - localY)) <= cornerRadiusPx -> 4 // Bottom-Right: Delete
+            else -> 0
+        }
+        hoveredCornerZone = cornerHit
+        if (cornerHit != 0) {
+            hoveredBreadcrumbPath = null
+            hoveredFolderPath = null
+            return
+        }
+
+        val bcHit = breadcrumbBoundsMap.entries.firstOrNull { (segPath, rect) ->
+            rect.inflate(14f).contains(windowPos) && segPath != currentDir.absolutePath
+        }?.key
+        hoveredBreadcrumbPath = bcHit
+        if (bcHit != null) {
+            hoveredFolderPath = null
+        } else {
+            val folderHit = folderBoundsMap.entries.firstOrNull { (dirPath, rect) ->
+                rect.contains(windowPos) && !currentSelectedPaths.contains(dirPath)
+            }?.key
+            hoveredFolderPath = folderHit
+        }
+    }
+
+    fun handleItemDragEnd() {
+        val corner = hoveredCornerZone
+        val targetPath = hoveredBreadcrumbPath ?: hoveredFolderPath
+        val draggedItems = currentDisplayFiles.filter { currentSelectedPaths.contains(it.path) }.map { it.file }
+
+        if (dragStartedMoving && corner != 0 && draggedItems.isNotEmpty()) {
+            when (corner) {
+                1, 3 -> {
+                    // Share / Send selected files
+                    val filesOnly = draggedItems.filter { it.isFile }
+                    if (filesOnly.isNotEmpty()) {
+                        runCatching {
+                            if (filesOnly.size == 1) {
+                                val f = filesOnly.first()
+                                val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", f)
+                                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "*/*"
+                                    putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(android.content.Intent.createChooser(intent, "Compartilhar ${f.name}"))
+                            } else {
+                                val uris = ArrayList(filesOnly.map {
+                                    androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", it)
+                                })
+                                val intent = android.content.Intent(android.content.Intent.ACTION_SEND_MULTIPLE).apply {
+                                    type = "*/*"
+                                    putParcelableArrayListExtra(android.content.Intent.EXTRA_STREAM, uris)
+                                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(android.content.Intent.createChooser(intent, "Compartilhar ${filesOnly.size} arquivos"))
+                            }
+                        }
+                    }
+                    selectedPaths = emptySet()
+                }
+                2 -> {
+                    // Copy to ES Clipboard
+                    FileOperations.currentClipboard = FileOperations.ClipboardItem(draggedItems, FileOperations.ClipboardMode.COPY)
+                    selectedPaths = emptySet()
+                }
+                4 -> {
+                    // Delete confirmation dialog
+                    showDeleteDialog = true
+                }
+            }
+        } else if (dragStartedMoving && targetPath != null) {
+            val destDir = File(targetPath)
+            val dragged = draggedItems.filter { it.absolutePath != destDir.absolutePath && it.parentFile?.absolutePath != destDir.absolutePath }
+            if (destDir.isDirectory && dragged.isNotEmpty()) {
+                selectedPaths = emptySet()
+                scope.launch {
+                    FileOperations.currentClipboard = FileOperations.ClipboardItem(dragged, FileOperations.ClipboardMode.CUT)
+                    FileOperations.paste(destDir)
+                    refreshFiles()
+                }
+            }
+        }
+        isDraggingItems = false
+        dragStartedMoving = false
+        draggedPrimaryItem = null
+        hoveredFolderPath = null
+        hoveredBreadcrumbPath = null
+        hoveredCornerZone = 0
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(EsBgColor)
+            .onGloballyPositioned { coords ->
+                rootWindowOffset = coords.boundsInWindow().topLeft
+                rootWindowSize = coords.size
+            }
+            .pointerInput(currentDir) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    val startWindowPos = rootWindowOffset + down.position
+                    var draggingActive = false
+                    val slop = viewConfiguration.touchSlop * 0.65f
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: event.changes.firstOrNull()
+                        if (change == null || !change.pressed) {
+                            if (draggingActive) {
+                                handleItemDragEnd()
+                            }
+                            break
+                        }
+                        val currentWindowPos = rootWindowOffset + change.position
+                        if (!draggingActive) {
+                            if (currentSelectedPaths.isNotEmpty() && (currentWindowPos - startWindowPos).getDistance() > slop) {
+                                val hitSelectedPath = currentSelectedPaths.firstOrNull { path ->
+                                    val r = itemBoundsMap[path]
+                                    r != null && (r.inflate(8f).contains(startWindowPos) || r.inflate(8f).contains(currentWindowPos))
+                                }
+                                val primaryItem = if (hitSelectedPath != null) {
+                                    currentDisplayFiles.firstOrNull { it.path == hitSelectedPath }
+                                } else if (currentSelectedPaths.size == 1) {
+                                    val onlyPath = currentSelectedPaths.first()
+                                    val r = itemBoundsMap[onlyPath]
+                                    if (r == null || r.inflate(24f).contains(startWindowPos) || r.inflate(24f).contains(currentWindowPos)) {
+                                        currentDisplayFiles.firstOrNull { it.path == onlyPath }
+                                    } else null
+                                } else null
+
+                                if (primaryItem != null) {
+                                    draggingActive = true
+                                    handleItemDragStart(primaryItem, currentWindowPos)
+                                    handleItemDragMove(currentWindowPos)
+                                    event.changes.forEach { it.consume() }
+                                }
+                            }
+                        } else {
+                            handleItemDragMove(currentWindowPos)
+                            event.changes.forEach { it.consume() }
+                        }
+                    }
+                }
+            }
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // 1:1 Top Bar for Explorer with multi-tab switching and global drawer menu (☰)
+            // 1:1 Top Bar for Explorer (collapses during Drag & Drop just like original ES File Explorer!)
             val displayTabs = remember(tabs, activeTabId, isSelectionMode, selectedPaths.size, currentDir) {
                 if (tabs.isEmpty()) emptyList()
                 else tabs.map { t ->
@@ -196,30 +370,34 @@ fun ExplorerScreen(
                     } else t
                 }
             }
-            EsTopHeader(
-                tabTitle = if (isSelectionMode) "${selectedPaths.size} selecionados" else "Local",
-                onMenuClick = {
-                    if (isSelectionMode) selectedPaths = emptySet()
-                    else onMenuClick()
-                },
-                onTabCloseClick = onNavigateBack,
-                menuIconRes = if (isSelectionMode) R.drawable.toolbar_cancel else R.drawable.toolbar_menu,
-                tabs = displayTabs,
-                activeTabId = activeTabId,
-                onTabSelect = onTabSelect,
-                onTabClose = onTabClose,
-                onAddTab = onAddTab,
-                isSelectionMode = isSelectionMode,
-                selectedCount = selectedPaths.size,
-                totalCount = displayFiles.size,
-                onSelectAll = {
-                    selectedPaths = if (selectedPaths.size == displayFiles.size && displayFiles.isNotEmpty()) {
-                        emptySet()
-                    } else {
-                        displayFiles.map { it.path }.toSet()
+            if (!isDraggingItems) {
+                EsTopHeader(
+                    tabTitle = if (isSelectionMode) "${selectedPaths.size} selecionados" else "Local",
+                    onMenuClick = {
+                        if (isSelectionMode) selectedPaths = emptySet()
+                        else onMenuClick()
+                    },
+                    onTabCloseClick = onNavigateBack,
+                    menuIconRes = if (isSelectionMode) R.drawable.toolbar_cancel else R.drawable.toolbar_menu,
+                    tabs = displayTabs,
+                    activeTabId = activeTabId,
+                    onTabSelect = onTabSelect,
+                    onTabClose = onTabClose,
+                    onAddTab = onAddTab,
+                    isSelectionMode = isSelectionMode,
+                    selectedCount = selectedPaths.size,
+                    totalCount = displayFiles.size,
+                    onSelectAll = {
+                        selectedPaths = if (selectedPaths.size == displayFiles.size && displayFiles.isNotEmpty()) {
+                            emptySet()
+                        } else {
+                            displayFiles.map { it.path }.toSet()
+                        }
                     }
-                }
-            )
+                )
+            } else {
+                Spacer(modifier = Modifier.statusBarsPadding().height(54.dp))
+            }
 
             // Path Breadcrumb Bar with Right Pointed Gauge Tag (opens Space Analyzer) & Drop Targets for parent folders
             val totalSpace = currentDir.totalSpace
@@ -239,7 +417,7 @@ fun ExplorerScreen(
             InlineTransferProgressStrip(state = transferState)
 
             AnimatedVisibility(
-                visible = showSearchBar,
+                visible = showSearchBar && !isDraggingItems,
                 enter = expandVertically(animationSpec = folmeSpring(damping = 0.85f, response = 0.28f)) + fadeIn(),
                 exit = shrinkVertically(animationSpec = folmeSpring(damping = 0.9f, response = 0.22f)) + fadeOut()
             ) {
@@ -266,113 +444,8 @@ fun ExplorerScreen(
                 }
             }
 
-            // Content Area (Grid or List) with MIUIX Folme spring transitions, overscroll, and 1:1 Drag & Drop
-            val currentSelectedPaths by rememberUpdatedState(selectedPaths)
-            val currentDisplayFiles by rememberUpdatedState(displayFiles)
-
-            fun handleItemDragStart(item: FileItem, windowPos: Offset) {
-                draggedPrimaryItem = item
-                isDraggingItems = true
-                dragStartedMoving = true
-                dragWindowPos = windowPos
-                hoveredFolderPath = null
-                hoveredBreadcrumbPath = null
-            }
-
-            fun handleItemDragMove(windowPos: Offset) {
-                dragStartedMoving = true
-                dragWindowPos = windowPos
-                val bcHit = breadcrumbBoundsMap.entries.firstOrNull { (segPath, rect) ->
-                    rect.inflate(14f).contains(windowPos) && segPath != currentDir.absolutePath
-                }?.key
-                hoveredBreadcrumbPath = bcHit
-                if (bcHit != null) {
-                    hoveredFolderPath = null
-                } else {
-                    val folderHit = folderBoundsMap.entries.firstOrNull { (dirPath, rect) ->
-                        rect.contains(windowPos) && !currentSelectedPaths.contains(dirPath)
-                    }?.key
-                    hoveredFolderPath = folderHit
-                }
-            }
-
-            fun handleItemDragEnd() {
-                val targetPath = hoveredBreadcrumbPath ?: hoveredFolderPath
-                if (dragStartedMoving && targetPath != null) {
-                    val destDir = File(targetPath)
-                    val dragged = currentDisplayFiles.filter { currentSelectedPaths.contains(it.path) }.map { it.file }
-                        .filter { it.absolutePath != destDir.absolutePath && it.parentFile?.absolutePath != destDir.absolutePath }
-                    if (destDir.isDirectory && dragged.isNotEmpty()) {
-                        selectedPaths = emptySet()
-                        scope.launch {
-                            FileOperations.currentClipboard = FileOperations.ClipboardItem(dragged, FileOperations.ClipboardMode.CUT)
-                            FileOperations.paste(destDir)
-                            refreshFiles()
-                        }
-                    }
-                }
-                isDraggingItems = false
-                dragStartedMoving = false
-                draggedPrimaryItem = null
-                hoveredFolderPath = null
-                hoveredBreadcrumbPath = null
-            }
-
             Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .onGloballyPositioned { coords ->
-                        containerWindowOffset = coords.boundsInWindow().topLeft
-                    }
-                    .pointerInput(currentDir) {
-                        awaitEachGesture {
-                            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                            val startWindowPos = containerWindowOffset + down.position
-                            var draggingActive = false
-                            val slop = viewConfiguration.touchSlop * 0.65f
-                            while (true) {
-                                val event = awaitPointerEvent(PointerEventPass.Initial)
-                                val change = event.changes.firstOrNull { it.id == down.id } ?: event.changes.firstOrNull()
-                                if (change == null || !change.pressed) {
-                                    if (draggingActive) {
-                                        handleItemDragEnd()
-                                    }
-                                    break
-                                }
-                                val currentWindowPos = containerWindowOffset + change.position
-                                if (!draggingActive) {
-                                    // Works both when:
-                                    // 1) Item was ALREADY selected and user drags it, OR
-                                    // 2) User long-pressed an item (which selects it while finger is still down) and immediately drags without lifting finger!
-                                    if (currentSelectedPaths.isNotEmpty() && (currentWindowPos - startWindowPos).getDistance() > slop) {
-                                        val hitSelectedPath = currentSelectedPaths.firstOrNull { path ->
-                                            val r = itemBoundsMap[path]
-                                            r != null && (r.inflate(8f).contains(startWindowPos) || r.inflate(8f).contains(currentWindowPos))
-                                        }
-                                        val primaryItem = if (hitSelectedPath != null) {
-                                            currentDisplayFiles.firstOrNull { it.path == hitSelectedPath }
-                                        } else if (currentSelectedPaths.size == 1) {
-                                            val onlyPath = currentSelectedPaths.first()
-                                            val r = itemBoundsMap[onlyPath]
-                                            if (r == null || r.inflate(24f).contains(startWindowPos) || r.inflate(24f).contains(currentWindowPos)) {
-                                                currentDisplayFiles.firstOrNull { it.path == onlyPath }
-                                            } else null
-                                        } else null
-
-                                        if (primaryItem != null) {
-                                            draggingActive = true
-                                            handleItemDragStart(primaryItem, currentWindowPos)
-                                            handleItemDragMove(currentWindowPos)
-                                            event.changes.forEach { it.consume() }
-                                        }
-                                    }
-                                } else {
-                                    handleItemDragMove(currentWindowPos)
-                                    event.changes.forEach { it.consume() }
-                                }
-                            }
-                        }
-                    }
+                modifier = Modifier.weight(1f)
             ) {
                 AnimatedContent(
                     targetState = Pair(currentDir.absolutePath, isGridView),
@@ -424,11 +497,13 @@ fun ExplorerScreen(
                         ) {
                             items(displayFiles, key = { it.path }) { item ->
                                 val isSelected = selectedPaths.contains(item.path)
+                                val isBeingDragged = isDraggingItems && dragStartedMoving && isSelected
                                 val isDropTarget = item.isDirectory && hoveredFolderPath == item.path
                                 FileGridItem(
                                     item = item,
                                     isSelected = isSelected,
                                     isSelectionMode = isSelectionMode,
+                                    isBeingDragged = isBeingDragged,
                                     isDropTarget = isDropTarget,
                                     onBoundsChanged = { rect ->
                                         itemBoundsMap[item.path] = rect
@@ -463,11 +538,13 @@ fun ExplorerScreen(
                         ) {
                             items(displayFiles, key = { it.path }) { item ->
                                 val isSelected = selectedPaths.contains(item.path)
+                                val isBeingDragged = isDraggingItems && dragStartedMoving && isSelected
                                 val isDropTarget = item.isDirectory && hoveredFolderPath == item.path
                                 FileListItem(
                                     item = item,
                                     isSelected = isSelected,
                                     isSelectionMode = isSelectionMode,
+                                    isBeingDragged = isBeingDragged,
                                     isDropTarget = isDropTarget,
                                     onBoundsChanged = { rect ->
                                         itemBoundsMap[item.path] = rect
@@ -496,92 +573,6 @@ fun ExplorerScreen(
                     }
                 }
 
-                // 1:1 ES File Explorer Real Floating File/Folder Icon following finger
-                if (isDraggingItems && dragStartedMoving) {
-                    val localX = (dragWindowPos.x - containerWindowOffset.x).toInt()
-                    val localY = (dragWindowPos.y - containerWindowOffset.y).toInt()
-                    val primaryItem = draggedPrimaryItem ?: files.firstOrNull { selectedPaths.contains(it.path) }
-                    if (primaryItem != null) {
-                        val dragIconRes = when {
-                            primaryItem.isDirectory -> R.drawable.format_folder
-                            primaryItem.extension == "apk" -> R.drawable.format_apk
-                            primaryItem.extension in setOf("jpg", "jpeg", "png", "webp", "gif") -> R.drawable.format_picture
-                            primaryItem.extension in setOf("mp4", "mkv", "avi", "mov") -> R.drawable.format_video
-                            primaryItem.extension in setOf("mp3", "flac", "wav", "m4a") -> R.drawable.format_music
-                            primaryItem.extension in setOf("zip", "rar", "7z", "tar") -> R.drawable.format_zip
-                            primaryItem.extension == "pdf" -> R.drawable.format_pdf
-                            primaryItem.extension in setOf("doc", "docx") -> R.drawable.format_word
-                            primaryItem.extension in setOf("xls", "xlsx", "csv") -> R.drawable.format_excel
-                            primaryItem.extension in setOf("ppt", "pptx") -> R.drawable.format_ppt
-                            primaryItem.extension in setOf("txt", "log", "json", "xml", "md", "ini", "conf", "prop") -> R.drawable.format_text
-                            else -> R.drawable.format_unkown
-                        }
-                        val folderBadge = if (primaryItem.isDirectory) getEsFolderBadgeRes(primaryItem.name) else null
-                        val density = androidx.compose.ui.platform.LocalDensity.current
-                        val halfSizePx = with(density) { 36.dp.roundToPx() }
-                        val offsetYAdjPx = with(density) { 46.dp.roundToPx() }
-                        Box(
-                            modifier = Modifier
-                                .offset { IntOffset(localX - halfSizePx, localY - offsetYAdjPx) }
-                                .size(72.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (selectedPaths.size > 1) {
-                                // Stacked shadow icon behind when dragging multiple items
-                                Image(
-                                    painter = painterResource(dragIconRes),
-                                    contentDescription = null,
-                                    modifier = Modifier
-                                        .size(58.dp)
-                                        .offset(x = 6.dp, y = (-5).dp),
-                                    alpha = 0.55f
-                                )
-                            }
-                            if (isMediaFile(primaryItem.file)) {
-                                FileThumbnail(
-                                    file = primaryItem.file,
-                                    fallbackRes = dragIconRes,
-                                    modifier = Modifier
-                                        .size(62.dp)
-                                        .clip(RoundedCornerShape(6.dp))
-                                )
-                            } else {
-                                Image(
-                                    painter = painterResource(dragIconRes),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(62.dp)
-                                )
-                            }
-                            if (primaryItem.isDirectory && folderBadge != null) {
-                                Image(
-                                    painter = painterResource(folderBadge),
-                                    contentDescription = null,
-                                    modifier = Modifier
-                                        .size(26.dp)
-                                        .offset(y = 3.dp)
-                                )
-                            }
-                            if (selectedPaths.size > 1) {
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF2F7DF6))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = "${selectedPaths.size}",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
                 // Right-edge semi-circular Clipboard Tab (1:1 ES File Explorer)
                 EsClipboardSideTab(
                     clipboard = if (!isSelectionMode) clipboardState else null,
@@ -600,100 +591,102 @@ fun ExplorerScreen(
                 )
             }
 
-            // 1:1 Bottom Bar with AnimatedContent transition between Normal / Selection / Clipboard Paste modes
-            val bottomMode = when {
-                isSelectionMode -> 1
-                clipboardState != null -> 2
-                else -> 0
-            }
-            AnimatedContent(
-                targetState = bottomMode,
-                transitionSpec = {
-                    (slideInVertically(animationSpec = folmeSpring(damping = 0.85f, response = 0.28f)) { it / 2 } + fadeIn()) togetherWith
-                        (slideOutVertically(animationSpec = folmeSpring(damping = 0.9f, response = 0.22f)) { it / 2 } + fadeOut())
-                },
-                label = "explorer_bottom_bar"
-            ) { mode ->
-                when (mode) {
-                    1 -> FileActionBottomBar(
-                        selectedCount = selectedPaths.size,
-                        onCopy = {
-                            val selectedFiles = files.filter { selectedPaths.contains(it.path) }.map { it.file }
-                            FileOperations.currentClipboard = FileOperations.ClipboardItem(selectedFiles, FileOperations.ClipboardMode.COPY)
-                            selectedPaths = emptySet()
-                        },
-                        onCut = {
-                            val selectedFiles = files.filter { selectedPaths.contains(it.path) }.map { it.file }
-                            FileOperations.currentClipboard = FileOperations.ClipboardItem(selectedFiles, FileOperations.ClipboardMode.CUT)
-                            selectedPaths = emptySet()
-                        },
-                        onDelete = { showDeleteDialog = true },
-                        onRename = {
-                            if (selectedPaths.size > 1) {
-                                val first = files.firstOrNull { selectedPaths.contains(it.path) }
-                                batchRenamePattern = first?.file?.nameWithoutExtension ?: "Arquivo"
-                                showBatchRenameDialog = true
-                            } else {
-                                val selected = files.firstOrNull { selectedPaths.contains(it.path) }
-                                if (selected != null) {
-                                    renameFileName = selected.name
-                                    showRenameDialog = true
+            // 1:1 Bottom Bar (hidden during active Drag & Drop so the bottom corner triangles are unobstructed, exactly like original ES!)
+            if (!isDraggingItems) {
+                val bottomMode = when {
+                    isSelectionMode -> 1
+                    clipboardState != null -> 2
+                    else -> 0
+                }
+                AnimatedContent(
+                    targetState = bottomMode,
+                    transitionSpec = {
+                        (slideInVertically(animationSpec = folmeSpring(damping = 0.85f, response = 0.28f)) { it / 2 } + fadeIn()) togetherWith
+                            (slideOutVertically(animationSpec = folmeSpring(damping = 0.9f, response = 0.22f)) { it / 2 } + fadeOut())
+                    },
+                    label = "explorer_bottom_bar"
+                ) { mode ->
+                    when (mode) {
+                        1 -> FileActionBottomBar(
+                            selectedCount = selectedPaths.size,
+                            onCopy = {
+                                val selectedFiles = files.filter { selectedPaths.contains(it.path) }.map { it.file }
+                                FileOperations.currentClipboard = FileOperations.ClipboardItem(selectedFiles, FileOperations.ClipboardMode.COPY)
+                                selectedPaths = emptySet()
+                            },
+                            onCut = {
+                                val selectedFiles = files.filter { selectedPaths.contains(it.path) }.map { it.file }
+                                FileOperations.currentClipboard = FileOperations.ClipboardItem(selectedFiles, FileOperations.ClipboardMode.CUT)
+                                selectedPaths = emptySet()
+                            },
+                            onDelete = { showDeleteDialog = true },
+                            onRename = {
+                                if (selectedPaths.size > 1) {
+                                    val first = files.firstOrNull { selectedPaths.contains(it.path) }
+                                    batchRenamePattern = first?.file?.nameWithoutExtension ?: "Arquivo"
+                                    showBatchRenameDialog = true
+                                } else {
+                                    val selected = files.firstOrNull { selectedPaths.contains(it.path) }
+                                    if (selected != null) {
+                                        renameFileName = selected.name
+                                        showRenameDialog = true
+                                    }
                                 }
+                            },
+                            onMore = {
+                                showSelectionMoreDialog = true
                             }
-                        },
-                        onMore = {
-                            showSelectionMoreDialog = true
-                        }
-                    )
-                    2 -> EsClipboardBottomBar(
-                        onPaste = {
-                            scope.launch {
-                                FileOperations.paste(currentDir)
-                                refreshFiles()
-                            }
-                        },
-                        onNewFolder = {
-                            newFolderName = ""
-                            showNewFolderDialog = true
-                        },
-                        onCancel = {
-                            FileOperations.currentClipboard = null
-                        }
-                    )
-                    else -> Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(EsBgColor)
-                            .navigationBarsPadding()
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(1.dp)
-                                .background(EsDividerColor)
                         )
-                        Row(
+                        2 -> EsClipboardBottomBar(
+                            onPaste = {
+                                scope.launch {
+                                    FileOperations.paste(currentDir)
+                                    refreshFiles()
+                                }
+                            },
+                            onNewFolder = {
+                                newFolderName = ""
+                                showNewFolderDialog = true
+                            },
+                            onCancel = {
+                                FileOperations.currentClipboard = null
+                            }
+                        )
+                        else -> Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(54.dp)
-                                .padding(horizontal = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceAround,
-                            verticalAlignment = Alignment.CenterVertically
+                                .background(EsBgColor)
+                                .navigationBarsPadding()
                         ) {
-                            ExplorerBottomActionItem("Novo", R.drawable.toolbar_new, modifier = Modifier.weight(1f)) {
-                                newFolderName = ""
-                                showNewTypeDialog = true
-                            }
-                            ExplorerBottomActionItem("Procurar", R.drawable.toolbar_search, modifier = Modifier.weight(1f)) {
-                                showSearchBar = !showSearchBar
-                                if (!showSearchBar) searchQuery = ""
-                            }
-                            ExplorerBottomActionItem("Atualizar", R.drawable.toolbar_refresh, modifier = Modifier.weight(1f)) { refreshFiles() }
-                            ExplorerBottomActionItem("Visualizar", R.drawable.toolbar_view, modifier = Modifier.weight(1f)) {
-                                showViewMenu = true
-                            }
-                            ExplorerBottomActionItem("Mais", R.drawable.toolbar_more, modifier = Modifier.weight(1f)) {
-                                showMoreMenu = true
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(1.dp)
+                                    .background(EsDividerColor)
+                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(54.dp)
+                                    .padding(horizontal = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceAround,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                ExplorerBottomActionItem("Novo", R.drawable.toolbar_new, modifier = Modifier.weight(1f)) {
+                                    newFolderName = ""
+                                    showNewTypeDialog = true
+                                }
+                                ExplorerBottomActionItem("Procurar", R.drawable.toolbar_search, modifier = Modifier.weight(1f)) {
+                                    showSearchBar = !showSearchBar
+                                    if (!showSearchBar) searchQuery = ""
+                                }
+                                ExplorerBottomActionItem("Atualizar", R.drawable.toolbar_refresh, modifier = Modifier.weight(1f)) { refreshFiles() }
+                                ExplorerBottomActionItem("Visualizar", R.drawable.toolbar_view, modifier = Modifier.weight(1f)) {
+                                    showViewMenu = true
+                                }
+                                ExplorerBottomActionItem("Mais", R.drawable.toolbar_more, modifier = Modifier.weight(1f)) {
+                                    showMoreMenu = true
+                                }
                             }
                         }
                     }
@@ -708,6 +701,222 @@ fun ExplorerScreen(
                         onOpenFile(file)
                     }
                 )
+            }
+        }
+
+        // 1:1 ES File Explorer Drag & Drop Full-Screen Overlay:
+        // - 4 Triangular Corner Drop Zones (Top-Left: Share, Top-Right: Copy, Bottom-Left: Send, Bottom-Right: Delete)
+        // - Real Floating File/Folder Icon + Item Name following finger everywhere on screen without clipping
+        if (isDraggingItems && dragStartedMoving) {
+            val cornerSize = 115.dp
+            val normalCornerColor = Color(0xD9383C40)
+            val activeCornerColor = Color(0xE62F7DF6)
+            val activeDeleteColor = Color(0xE6E53935)
+
+            // Top-Left Triangle (Share)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .statusBarsPadding()
+                    .size(cornerSize)
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val path = Path().apply {
+                        moveTo(0f, 0f)
+                        lineTo(size.width, 0f)
+                        lineTo(0f, size.height)
+                        close()
+                    }
+                    drawPath(path, if (hoveredCornerZone == 1) activeCornerColor else normalCornerColor)
+                }
+                Image(
+                    painter = painterResource(R.drawable.toolbar_share),
+                    contentDescription = "Compartilhar",
+                    modifier = Modifier
+                        .padding(start = 18.dp, top = 18.dp)
+                        .size(26.dp),
+                    colorFilter = ColorFilter.tint(Color.White.copy(alpha = if (hoveredCornerZone == 1) 1f else 0.78f))
+                )
+            }
+
+            // Top-Right Triangle (Copy)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .size(cornerSize)
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val path = Path().apply {
+                        moveTo(size.width, 0f)
+                        lineTo(0f, 0f)
+                        lineTo(size.width, size.height)
+                        close()
+                    }
+                    drawPath(path, if (hoveredCornerZone == 2) activeCornerColor else normalCornerColor)
+                }
+                Image(
+                    painter = painterResource(R.drawable.toolbar_copy),
+                    contentDescription = "Copiar",
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(end = 18.dp, top = 18.dp)
+                        .size(26.dp),
+                    colorFilter = ColorFilter.tint(Color.White.copy(alpha = if (hoveredCornerZone == 2) 1f else 0.78f))
+                )
+            }
+
+            // Bottom-Left Triangle (Send)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .navigationBarsPadding()
+                    .size(cornerSize)
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val path = Path().apply {
+                        moveTo(0f, size.height)
+                        lineTo(size.width, size.height)
+                        lineTo(0f, 0f)
+                        close()
+                    }
+                    drawPath(path, if (hoveredCornerZone == 3) activeCornerColor else normalCornerColor)
+                }
+                Image(
+                    painter = painterResource(R.drawable.es_tool_sender),
+                    contentDescription = "Enviar",
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 18.dp, bottom = 18.dp)
+                        .size(26.dp),
+                    colorFilter = ColorFilter.tint(Color.White.copy(alpha = if (hoveredCornerZone == 3) 1f else 0.78f))
+                )
+            }
+
+            // Bottom-Right Triangle (Delete)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .navigationBarsPadding()
+                    .size(cornerSize)
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val path = Path().apply {
+                        moveTo(size.width, size.height)
+                        lineTo(0f, size.height)
+                        lineTo(size.width, 0f)
+                        close()
+                    }
+                    drawPath(path, if (hoveredCornerZone == 4) activeDeleteColor else normalCornerColor)
+                }
+                Image(
+                    painter = painterResource(R.drawable.toolbar_delete),
+                    contentDescription = "Excluir",
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 18.dp, bottom = 18.dp)
+                        .size(26.dp),
+                    colorFilter = ColorFilter.tint(Color.White.copy(alpha = if (hoveredCornerZone == 4) 1f else 0.78f))
+                )
+            }
+
+            // Floating Icon + Name Label (1:1 ES File Explorer)
+            val localX = (dragWindowPos.x - rootWindowOffset.x).toInt()
+            val localY = (dragWindowPos.y - rootWindowOffset.y).toInt()
+            val primaryItem = draggedPrimaryItem ?: files.firstOrNull { selectedPaths.contains(it.path) }
+            if (primaryItem != null) {
+                val dragIconRes = when {
+                    primaryItem.isDirectory -> R.drawable.format_folder
+                    primaryItem.extension == "apk" -> R.drawable.format_apk
+                    primaryItem.extension in setOf("jpg", "jpeg", "png", "webp", "gif") -> R.drawable.format_picture
+                    primaryItem.extension in setOf("mp4", "mkv", "avi", "mov") -> R.drawable.format_video
+                    primaryItem.extension in setOf("mp3", "flac", "wav", "m4a") -> R.drawable.format_music
+                    primaryItem.extension in setOf("zip", "rar", "7z", "tar") -> R.drawable.format_zip
+                    primaryItem.extension == "pdf" -> R.drawable.format_pdf
+                    primaryItem.extension in setOf("doc", "docx") -> R.drawable.format_word
+                    primaryItem.extension in setOf("xls", "xlsx", "csv") -> R.drawable.format_excel
+                    primaryItem.extension in setOf("ppt", "pptx") -> R.drawable.format_ppt
+                    primaryItem.extension in setOf("txt", "log", "json", "xml", "md", "ini", "conf", "prop") -> R.drawable.format_text
+                    else -> R.drawable.format_unkown
+                }
+                val folderBadge = if (primaryItem.isDirectory) getEsFolderBadgeRes(primaryItem.name) else null
+                val halfWidthPx = with(density) { 48.dp.roundToPx() }
+                val offsetYAdjPx = with(density) { 54.dp.roundToPx() }
+                Column(
+                    modifier = Modifier
+                        .offset { IntOffset(localX - halfWidthPx, localY - offsetYAdjPx) }
+                        .width(96.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier.size(72.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (selectedPaths.size > 1) {
+                            Image(
+                                painter = painterResource(dragIconRes),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(62.dp)
+                                    .offset(x = 6.dp, y = (-5).dp),
+                                alpha = 0.55f
+                            )
+                        }
+                        if (isMediaFile(primaryItem.file)) {
+                            FileThumbnail(
+                                file = primaryItem.file,
+                                fallbackRes = dragIconRes,
+                                modifier = Modifier
+                                    .size(68.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                            )
+                        } else {
+                            Image(
+                                painter = painterResource(dragIconRes),
+                                contentDescription = null,
+                                modifier = Modifier.size(68.dp),
+                                alpha = 0.92f
+                            )
+                        }
+                        if (primaryItem.isDirectory && folderBadge != null) {
+                            Image(
+                                painter = painterResource(folderBadge),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(30.dp)
+                                    .offset(y = 3.dp),
+                                alpha = 0.92f
+                            )
+                        }
+                        if (selectedPaths.size > 1) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF2F7DF6))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "${selectedPaths.size}",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = primaryItem.name,
+                        fontSize = 14.sp,
+                        color = EsTextPrimary.copy(alpha = 0.88f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
         }
     }
