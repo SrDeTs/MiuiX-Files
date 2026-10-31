@@ -455,9 +455,9 @@ fun SettingsScreen(
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Image(
-                                painter = painterResource(R.drawable.es_cat_app),
+                                painter = painterResource(R.drawable.ic_app_logo),
                                 contentDescription = null,
-                                modifier = Modifier.size(42.dp)
+                                modifier = Modifier.size(44.dp)
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {

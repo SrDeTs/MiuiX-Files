@@ -1,4 +1,4 @@
-# <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png" width="40" height="40" align="absmiddle" alt="MiuiX Files Icon" /> MiuiX Files
+# <img src="app/src/main/res/drawable/ic_app_logo.png" width="48" height="48" align="absmiddle" alt="MiuiX Files Icon" /> MiuiX Files
 
 Gerenciador de arquivos para Android rápido, leve e completo, construído em **Jetpack Compose** com **MIUIX** ([compose-miuix-ui](https://github.com/compose-miuix-ui/miuix)).
 
