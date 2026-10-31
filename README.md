@@ -34,33 +34,6 @@ Recria a experiência 1:1, o fluxo de navegação e o conjunto de ferramentas do
 
 ---
 
-## 🗂️ Estrutura do Projeto
-
-```text
-.
-├── app/
-│   ├── build.gradle.kts          # Configuração do módulo Android (pacote miuix.files)
-│   └── src/main/
-│       ├── AndroidManifest.xml   # Permissões de armazenamento e FileProvider
-│       ├── res/                  # Ícones, temas e recursos visuais
-│       └── java/miuix/files/
-│           ├── MainActivity.kt   # Gerenciamento de múltiplas janelas e navegação
-│           ├── core/
-│           │   ├── model/        # Modelos (FileItem, StorageVolumeInfo, FileCategory, SortOption)
-│           │   ├── storage/      # StorageManager e FileOperations (copiar, mover, zip, batch rename)
-│           │   ├── cleaner/      # CleanerEngine (varredura e limpeza de cache/lixo)
-│           │   └── apps/         # AppManager (listagem, extração e backup de APKs)
-│           └── ui/
-│               ├── theme/        # Tema MIUIX e persistência de preferências
-│               ├── components/   # EsTopHeader, BreadcrumbBar, FileGridItem, FileListItem, EsApkDialog, etc.
-│               └── screens/      # HomeScreen, ExplorerScreen, CategoryScreen, AnalyzerScreen,
-│                                 # CleanerScreen, AppManagerScreen, SearchScreen, SettingsScreen
-├── build.gradle.kts              # Script raiz de build
-└── settings.gradle.kts           # Configuração de repositórios e módulos
-```
-
----
-
 ## 🛠️ Comandos de Build
 
 | Ação | Comando |
