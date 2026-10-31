@@ -18,7 +18,7 @@ Repositório oficial do **MiuiX-Files**, gerenciador de arquivos Android em Jetp
 │   └── src/main/
 │       ├── AndroidManifest.xml   # Permissões de armazenamento e FileProvider
 │       ├── res/                  # Strings, temas, mipmaps e drawables
-│       └── java/top/yukonga/miuix/files/
+│       └── java/miuix/files/
 │           ├── MainActivity.kt   # Atividade principal e gerenciamento da pilha de telas
 │           ├── core/
 │           │   ├── model/        # Modelos de dados (FileItem, StorageVolume, FileCategory)
