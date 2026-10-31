@@ -468,7 +468,7 @@ fun SettingsScreen(
                                     color = EsTextPrimary
                                 )
                                 Text(
-                                    text = "Versão 1.0.0 • HyperOS / ES Dark Edition",
+                                    text = "Versão 1.0.0 • MIUIX / ES Dark Edition",
                                     fontSize = 12.5.sp,
                                     color = MiuixTheme.colorScheme.primary
                                 )
